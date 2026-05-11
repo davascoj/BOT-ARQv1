@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analizador de Acciones ARQ</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+
+<body>
+  <main class="container">
+
+    <section class="hero">
+      <h1>Analizador de Acciones ARQ</h1>
+      <p>
+        Ranking técnico con probabilidad estimada, sector, momentum,
+        hot score, ATR, zona de entrada, stop loss, objetivo y señal de riesgo.
+      </p>
+
+      <div class="buttons">
+        <button onclick="cargarDatos()">Actualizar vista</button>
+        <button onclick="ejecutarAnalisis()">Ejecutar análisis en GitHub</button>
+        <button onclick="mostrarTop4()">Top 4 para mañana</button>
+      </div>
+
+      <div class="filtros">
+        <button onclick="filtrarSector('TODOS')">Todos</button>
+        <button onclick="filtrarSector('IA')">IA</button>
+        <button onclick="filtrarSector('Chips')">Chips</button>
+        <button onclick="filtrarSector('Trading')">Trading</button>
+        <button onclick="filtrarSector('Energía')">Energía</button>
+
+        <input
+          type="text"
+          id="buscarAccion"
+          placeholder="Buscar acción: NVDA, AMD, TSLA..."
+          oninput="renderTabla()"
+        />
+
+        <button onclick="limpiarBusqueda()">Quitar filtro</button>
+
+        <label>
+          <input type="checkbox" id="soloCompra" onchange="renderTabla()">
+          Solo compra
+        </label>
+
+        <label>
+          <input type="checkbox" id="soloHot" onchange="renderTabla()">
+          Solo HOT
+        </label>
+      </div>
+    </section>
+
+    <section class="notice">
+      <strong>Importante:</strong>
+      La probabilidad es técnica, no garantiza ganancias. Usa stop loss,
+      confirma volumen antes de entrar y no arriesgues dinero que no puedas perder.
+    </section>
+
+    <section class="card">
+      <div class="topbar">
+        <h2>Resultados</h2>
+        <span id="fecha">Cargando...</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th title="Ticker o símbolo bursátil de la acción. Ejemplo: NVDA, AMD, TSLA.">Acción</th>
+              <th title="Sector o categoría principal de la empresa. Sirve para identificar qué industria está fuerte.">Sector</th>
+              <th title="Último precio de cierre tomado por el sistema.">Precio</th>
+              <th title="Probabilidad técnica estimada. Verde = fuerte, amarillo = moderado, rojo = débil. No garantiza ganancia.">Prob.</th>
+              <th title="Movimiento reciente del precio en porcentaje. Positivo indica fuerza compradora; negativo indica debilidad.">Momentum</th>
+              <th title="Más fuego significa mayor fuerza técnica por probabilidad, volumen, momentum y riesgo controlado.">Hot</th>
+              <th title="ATR: promedio de movimiento diario de la acción. Ayuda a calcular stop y objetivo realistas.">ATR</th>
+              <th title="ATR como porcentaje del precio. Alto ATR % significa más movimiento y también más riesgo.">ATR %</th>
+              <th title="Zona técnica sugerida para intentar entrar, calculada usando ATR.">Entrada</th>
+              <th title="Precio sugerido para limitar pérdidas si la operación sale mal.">Stop</th>
+              <th title="Precio objetivo técnico estimado usando volatilidad reciente.">Objetivo</th>
+              <th title="RSI: indicador de fuerza. Cerca o arriba de 70 puede indicar sobrecompra.">RSI</th>
+              <th title="Riesgo bajo, medio o alto según volatilidad, momentum y RSI. Riesgo alto no significa mala acción, pero sí más peligro.">Riesgo</th>
+              <th title="Lectura automática: Posible compra, vigilar o no comprar.">Señal</th>
+            </tr>
+          </thead>
+
+          <tbody id="tabla"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
