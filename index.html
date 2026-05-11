@@ -9,13 +9,16 @@
 
 <body>
   <main class="container">
-
     <section class="hero">
       <h1>Analizador de Acciones ARQ</h1>
       <p>
-        Ranking técnico con probabilidad estimada, sector, momentum,
-        hot score, ATR, zona de entrada, stop loss, objetivo y señal de riesgo.
+        Ranking técnico mejorado con filtro de mercado SPY/QQQ, probabilidad estimada,
+        momentum, fuerza relativa, confirmación, riesgo, zona de entrada, stop loss y objetivo.
       </p>
+
+      <div class="market-box" id="marketBox">
+        Mercado: cargando...
+      </div>
 
       <div class="buttons">
         <button onclick="cargarDatos()">Actualizar vista</button>
@@ -29,6 +32,7 @@
         <button onclick="filtrarSector('Chips')">Chips</button>
         <button onclick="filtrarSector('Trading')">Trading</button>
         <button onclick="filtrarSector('Energía')">Energía</button>
+        <button onclick="filtrarSector('Tecnología')">Tecnología</button>
 
         <input
           type="text"
@@ -48,13 +52,24 @@
           <input type="checkbox" id="soloHot" onchange="renderTabla()">
           Solo HOT
         </label>
+
+        <label>
+          <input type="checkbox" id="ocultarAlto" onchange="renderTabla()" checked>
+          Ocultar riesgo alto
+        </label>
       </div>
     </section>
 
     <section class="notice">
       <strong>Importante:</strong>
-      La probabilidad es técnica, no garantiza ganancias. Usa stop loss,
-      confirma volumen antes de entrar y no arriesgues dinero que no puedas perder.
+      Esta herramienta no garantiza ganancias. La señal es una lectura técnica automática.
+      Antes de comprar, confirma precio en tiempo real, volumen, noticias y usa stop loss.
+    </section>
+
+    <section class="card summary-card">
+      <div class="summary" id="resumen">
+        Cargando resumen...
+      </div>
     </section>
 
     <section class="card">
@@ -67,28 +82,30 @@
         <table>
           <thead>
             <tr>
-              <th title="Ticker o símbolo bursátil de la acción. Ejemplo: NVDA, AMD, TSLA.">Acción</th>
-              <th title="Sector o categoría principal de la empresa. Sirve para identificar qué industria está fuerte.">Sector</th>
+              <th title="Ticker o símbolo bursátil.">Acción</th>
+              <th title="Sector o categoría principal.">Sector</th>
               <th title="Último precio de cierre tomado por el sistema.">Precio</th>
-              <th title="Probabilidad técnica estimada. Verde = fuerte, amarillo = moderado, rojo = débil. No garantiza ganancia.">Prob.</th>
-              <th title="Movimiento reciente del precio en porcentaje. Positivo indica fuerza compradora; negativo indica debilidad.">Momentum</th>
-              <th title="Más fuego significa mayor fuerza técnica por probabilidad, volumen, momentum y riesgo controlado.">Hot</th>
-              <th title="ATR: promedio de movimiento diario de la acción. Ayuda a calcular stop y objetivo realistas.">ATR</th>
-              <th title="ATR como porcentaje del precio. Alto ATR % significa más movimiento y también más riesgo.">ATR %</th>
-              <th title="Zona técnica sugerida para intentar entrar, calculada usando ATR.">Entrada</th>
-              <th title="Precio sugerido para limitar pérdidas si la operación sale mal.">Stop</th>
-              <th title="Precio objetivo técnico estimado usando volatilidad reciente.">Objetivo</th>
-              <th title="RSI: indicador de fuerza. Cerca o arriba de 70 puede indicar sobrecompra.">RSI</th>
-              <th title="Riesgo bajo, medio o alto según volatilidad, momentum y RSI. Riesgo alto no significa mala acción, pero sí más peligro.">Riesgo</th>
-              <th title="Lectura automática: Posible compra, vigilar o no comprar.">Señal</th>
+              <th title="Probabilidad técnica estimada. No garantiza ganancia.">Prob.</th>
+              <th title="Movimiento reciente de 5 días.">Mom. 5D</th>
+              <th title="Fuerza contra QQQ en 20 días. Positivo = supera al Nasdaq.">Rel.</th>
+              <th title="Más fuego significa mayor fuerza técnica con riesgo controlado.">Hot</th>
+              <th title="Confirmación técnica de ruptura o fuerza.">Conf.</th>
+              <th title="ATR como porcentaje del precio. Alto ATR % significa más riesgo.">ATR %</th>
+              <th title="Zona técnica sugerida de entrada.">Entrada</th>
+              <th title="Precio sugerido para limitar pérdidas.">Stop</th>
+              <th title="Precio objetivo técnico estimado.">Objetivo</th>
+              <th title="Relación riesgo/recompensa aproximada.">R/R</th>
+              <th title="RSI: arriba de 70 puede indicar sobrecompra.">RSI</th>
+              <th title="Contexto general del mercado por SPY/QQQ.">Mercado</th>
+              <th title="Riesgo según volatilidad, momentum, RSI y distancia a MA20.">Riesgo</th>
+              <th title="Lectura automática.">Señal</th>
+              <th title="Razones y alertas principales.">Detalle</th>
             </tr>
           </thead>
-
           <tbody id="tabla"></tbody>
         </table>
       </div>
     </section>
-
   </main>
 
   <script src="script.js"></script>
