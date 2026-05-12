@@ -2,10 +2,9 @@ let datosGlobales = [];
 let datosOriginales = [];
 let sectorActivo = "TODOS";
 let contextoMercado = null;
-
 const AUTO_REFRESH_MS = 60 * 1000;
 let autoRefreshActivo = true;
-let ultimaCargaCorrecta = null;
+let ultimaCargaPagina = Date.now();
 
 function obtenerRepoGitHub() {
   const usuario = location.hostname.includes(".github.io")
@@ -18,53 +17,75 @@ function obtenerRepoGitHub() {
   return { usuario, repo };
 }
 
+function normalizarClase(texto) {
+  return String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\+/g, "plus")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function actualizarEstadoAuto(mensaje, error = false) {
   const autoBox = document.getElementById("autoBox");
-  if (!autoBox) return;
+  const estadoSistema = document.getElementById("estadoSistema");
 
-  const hora = new Date().toLocaleTimeString("es-CO", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
+  if (autoBox) {
+    autoBox.textContent = mensaje;
+    autoBox.className = error ? "status-value auto-status auto-error" : "status-value auto-status";
+  }
 
-  autoBox.textContent = `${mensaje} | Vista revisada: ${hora}`;
-  autoBox.className = error ? "auto-box error" : "auto-box";
+  if (estadoSistema) {
+    estadoSistema.textContent = error ? "● Requiere revisión" : "● Sistema en línea";
+    estadoSistema.className = error ? "status-pill error" : "status-pill online";
+  }
 }
 
 async function cargarDatos() {
   const tabla = document.getElementById("tabla");
   const fecha = document.getElementById("fecha");
+  const fechaHero = document.getElementById("fechaHero");
   const marketBox = document.getElementById("marketBox");
   const resumen = document.getElementById("resumen");
+  const contador = document.getElementById("contadorResultados");
 
-  tabla.innerHTML = `<tr><td colspan="18">Cargando datos...</td></tr>`;
+  if (tabla) tabla.innerHTML = `<tr><td colspan="18">Cargando datos...</td></tr>`;
   if (resumen) resumen.textContent = "Cargando resumen...";
+  if (contador) contador.textContent = "Cargando resultados...";
 
   try {
     const resp = await fetch("datos_acciones.json?nocache=" + Date.now());
     if (!resp.ok) throw new Error("No existe datos_acciones.json todavía");
 
     const data = await resp.json();
-    fecha.textContent = "Última actualización: " + (data.actualizado || "sin fecha");
+    const fechaTexto = data.actualizado || "sin fecha";
+
+    if (fecha) fecha.textContent = "Última actualización: " + fechaTexto;
+    if (fechaHero) fechaHero.textContent = fechaTexto;
 
     contextoMercado = data.contexto_mercado || null;
     datosGlobales = data.resultados || [];
     datosOriginales = data.resultados || [];
+    ultimaCargaPagina = Date.now();
 
     pintarMercado();
     pintarResumen();
     renderTabla();
-
-    ultimaCargaCorrecta = new Date();
-    actualizarEstadoAuto("Página actualizando sola cada 60 segundos. GitHub Actions intenta renovar datos cada 5 minutos.");
+    actualizarCuentaRegresiva();
+    actualizarEstadoAuto("Activo: 5 min datos · 60 s vista");
 
   } catch (e) {
-    fecha.textContent = "Sin datos";
-    if (marketBox) marketBox.textContent = "Mercado: sin datos";
+    if (fecha) fecha.textContent = "Sin datos";
+    if (fechaHero) fechaHero.textContent = "Sin datos";
+    if (marketBox) {
+      marketBox.textContent = "Sin datos";
+      marketBox.className = "status-value market-status";
+    }
     if (resumen) resumen.textContent = "No hay resumen disponible.";
-    actualizarEstadoAuto("No se pudieron cargar los datos. Revisa que datos_acciones.json exista o ejecuta GitHub Actions manualmente.", true);
-    tabla.innerHTML = `<tr><td colspan="18">No se pudieron cargar datos. Abre GitHub Actions y ejecuta Run workflow.</td></tr>`;
+    if (contador) contador.textContent = "No hay resultados cargados";
+    actualizarEstadoAuto("Error: revisa datos_acciones.json o GitHub Actions", true);
+    if (tabla) tabla.innerHTML = `<tr><td colspan="18">No se pudieron cargar datos. Abre GitHub Actions y presiona Run workflow.</td></tr>`;
   }
 }
 
@@ -73,8 +94,8 @@ function pintarMercado() {
   if (!marketBox) return;
 
   if (!contextoMercado) {
-    marketBox.textContent = "Mercado: sin datos";
-    marketBox.className = "market-box";
+    marketBox.textContent = "Sin datos";
+    marketBox.className = "status-value market-status";
     return;
   }
 
@@ -82,8 +103,8 @@ function pintarMercado() {
   const spy = contextoMercado.spy20 ?? 0;
   const qqq = contextoMercado.qqq20 ?? 0;
 
-  marketBox.textContent = `Mercado: ${estado} | SPY 20D: ${spy}% | QQQ 20D: ${qqq}%`;
-  marketBox.className = "market-box " + estado.toLowerCase().replace(" ", "-").replace("é", "e");
+  marketBox.textContent = `${estado} · SPY ${spy}% · QQQ ${qqq}%`;
+  marketBox.className = "status-value market-status " + normalizarClase(estado);
 }
 
 function pintarResumen() {
@@ -95,14 +116,62 @@ function pintarResumen() {
   const posibles = datosOriginales.filter(r => r.Senal === "POSIBLE COMPRA").length;
   const vigilar = datosOriginales.filter(r => r.Senal === "VIGILAR").length;
   const alto = datosOriginales.filter(r => r.Riesgo === "ALTO").length;
+  const topCompras = fuertes + posibles;
+  const mercado = contextoMercado?.estado || "NEUTRO";
+  const mejor = [...datosOriginales].sort(ordenRanking)[0];
+  const mejorAccion = mejor?.Accion || "-";
+  const mejorSenal = mejor?.Senal || "Sin señal";
 
   resumen.innerHTML = `
-    <div><strong>${total}</strong><span>acciones analizadas</span></div>
-    <div><strong>${fuertes}</strong><span>compra fuerte</span></div>
-    <div><strong>${posibles}</strong><span>posible compra</span></div>
-    <div><strong>${vigilar}</strong><span>vigilar</span></div>
-    <div><strong>${alto}</strong><span>riesgo alto</span></div>
+    <div class="summary-item primary">
+      <small>Mejor oportunidad</small>
+      <strong>${mejorAccion}</strong>
+      <span>${mejorSenal}</span>
+    </div>
+    <div class="summary-item">
+      <small>Mercado</small>
+      <strong>${mercado}</strong>
+      <span>SPY / QQQ</span>
+    </div>
+    <div class="summary-item buy">
+      <small>Top compras</small>
+      <strong>${topCompras}</strong>
+      <span>fuertes + posibles</span>
+    </div>
+    <div class="summary-item">
+      <small>Total analizadas</small>
+      <strong>${total}</strong>
+      <span>acciones / ETFs</span>
+    </div>
+    <div class="summary-item warning">
+      <small>Vigilar</small>
+      <strong>${vigilar}</strong>
+      <span>sin entrada clara</span>
+    </div>
+    <div class="summary-item danger">
+      <small>Riesgo alto</small>
+      <strong>${alto}</strong>
+      <span>cuidado con entrada</span>
+    </div>
   `;
+}
+
+function actualizarCuentaRegresiva() {
+  const proximaVista = document.getElementById("proximaVista");
+  if (!proximaVista) return;
+
+  const transcurrido = Date.now() - ultimaCargaPagina;
+  const restante = Math.max(0, AUTO_REFRESH_MS - transcurrido);
+  const segundos = Math.ceil(restante / 1000);
+  proximaVista.textContent = segundos <= 0 ? "actualizando..." : `${segundos} s`;
+}
+
+function actualizarContador(cantidad) {
+  const contador = document.getElementById("contadorResultados");
+  if (!contador) return;
+
+  const total = datosOriginales.length;
+  contador.textContent = `Mostrando ${cantidad} de ${total} resultados`;
 }
 
 function filtrarSector(sector) {
@@ -217,6 +286,9 @@ function renderTabla() {
   }
 
   datos.sort(ordenRanking);
+  actualizarContador(datos.length);
+
+  if (!tabla) return;
   tabla.innerHTML = "";
 
   if (datos.length === 0) {
@@ -230,6 +302,7 @@ function renderTabla() {
     const prob = Number(r["Probabilidad tecnica"] || 0);
     const momentum = Number(r.Momentum || 0);
     const fuerzaRel = Number(r["Fuerza relativa"] || 0);
+    const mercadoClase = normalizarClase(r.Mercado || "NEUTRO");
 
     let claseSenal = "no";
     if (senal === "COMPRA FUERTE") claseSenal = "fuerte";
@@ -241,6 +314,7 @@ function renderTabla() {
     const detalle = [r.Razones, r.Alertas].filter(Boolean).join(" | ");
 
     const tr = document.createElement("tr");
+    tr.className = `row-${claseSenal}`;
     tr.innerHTML = `
       <td><strong>${r.Accion || ""}</strong></td>
       <td>${r.Sector || "Otro"}</td>
@@ -256,9 +330,9 @@ function renderTabla() {
       <td>${r.Objetivo}</td>
       <td>${r["R/R"] || ""}</td>
       <td>${r.RSI}</td>
-      <td>${r.Mercado || "NEUTRO"}</td>
+      <td><span class="mercado-pill ${mercadoClase}">${r.Mercado || "NEUTRO"}</span></td>
       <td><span class="badge ${riesgo}">${r.Riesgo}</span></td>
-      <td class="${claseSenal}">${r.Senal}</td>
+      <td><span class="senal-badge ${claseSenal}">${r.Senal}</span></td>
       <td class="detalle" title="${detalle}">${detalle || "-"}</td>
     `;
 
@@ -270,13 +344,15 @@ function ejecutarAnalisis() {
   const { usuario, repo } = obtenerRepoGitHub();
   const workflow = "analizar.yml";
   const url = `https://github.com/${usuario}/${repo}/actions/workflows/${workflow}`;
-
   window.open(url, "_blank");
-  alert("Ya no necesitas pegar token desde la página. Se abrió GitHub Actions. Si quieres forzar una actualización manual, presiona Run workflow.");
+  alert("La actualización automática ya está activa. Si quieres forzar una actualización manual, en GitHub Actions presiona Run workflow.");
 }
 
-
 cargarDatos();
+
+setInterval(() => {
+  actualizarCuentaRegresiva();
+}, 1000);
 
 setInterval(() => {
   if (!document.hidden && autoRefreshActivo) {

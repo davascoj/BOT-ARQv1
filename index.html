@@ -3,31 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Analizador de Acciones ARQ</title>
+  <meta name="theme-color" content="#0b1020" />
+  <title>ARQ Market Scanner | Analizador de Acciones</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 
 <body>
   <main class="container">
-    <section class="hero">
-      <h1>Analizador de Acciones ARQ</h1>
-      <p>
-        Ranking técnico mejorado con filtro de mercado SPY/QQQ, probabilidad estimada,
+    <section class="hero pro-hero">
+      <div class="hero-head">
+        <div class="brand">
+          <div class="brand-logo">ARQ</div>
+          <div>
+            <div class="eyebrow">Market Scanner</div>
+            <h1>Analizador de Acciones ARQ</h1>
+          </div>
+        </div>
+
+        <div class="status-pill online" id="estadoSistema">
+          ● Sistema cargando
+        </div>
+      </div>
+
+      <p class="hero-desc">
+        Ranking técnico profesional con filtro de mercado SPY/QQQ, probabilidad estimada,
         momentum, fuerza relativa, confirmación, riesgo, zona de entrada, stop loss y objetivo.
       </p>
 
-      <div class="market-box" id="marketBox">
-        Mercado: cargando...
-      </div>
-
-      <div class="auto-box" id="autoBox">
-        Actualización automática: cargando...
+      <div class="system-grid">
+        <div class="system-card">
+          <span>Mercado</span>
+          <strong id="marketBox" class="status-value market-status">Cargando...</strong>
+        </div>
+        <div class="system-card">
+          <span>Última actualización</span>
+          <strong id="fechaHero" class="status-value">Cargando...</strong>
+        </div>
+        <div class="system-card">
+          <span>Próximo refresco de vista</span>
+          <strong id="proximaVista" class="status-value">60 s</strong>
+        </div>
+        <div class="system-card">
+          <span>Automático</span>
+          <strong id="autoBox" class="status-value auto-status">GitHub Actions cada 5 min</strong>
+        </div>
       </div>
 
       <div class="buttons">
         <button onclick="cargarDatos()">Actualizar vista</button>
-        <button onclick="ejecutarAnalisis()">Abrir GitHub Actions</button>
-        <button onclick="mostrarTop4()">Top 4 para mañana</button>
+        <button onclick="ejecutarAnalisis()" class="secondary">Abrir GitHub Actions</button>
+        <button onclick="mostrarTop4()" class="accent">Top 4 para mañana</button>
       </div>
 
       <div class="filtros">
@@ -71,6 +96,10 @@
     </section>
 
     <section class="card summary-card">
+      <div class="section-title">
+        <h2>Resumen del scanner</h2>
+        <span id="contadorResultados">Cargando resultados...</span>
+      </div>
       <div class="summary" id="resumen">
         Cargando resumen...
       </div>
@@ -78,7 +107,10 @@
 
     <section class="card">
       <div class="topbar">
-        <h2>Resultados</h2>
+        <div>
+          <h2>Resultados</h2>
+          <p class="muted">Tabla ordenada por señal, riesgo, Hot Score, probabilidad y fuerza relativa.</p>
+        </div>
         <span id="fecha">Cargando...</span>
       </div>
 
