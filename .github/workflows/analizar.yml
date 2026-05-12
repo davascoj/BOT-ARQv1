@@ -3,31 +3,38 @@ name: Analizar acciones
 on:
   workflow_dispatch:
   schedule:
-    # Cada 5 minutos, lunes a viernes, de 8:00 a.m. a 4:59 p.m. hora Colombia aprox.
-    # GitHub usa hora UTC. Puede haber retrasos si GitHub está con alta carga.
-    - cron: "*/5 13-21 * * 1-5"
+    # Cada 5 minutos, lunes a viernes, en horario de mercado aprox. Colombia.
+    # Se usa 2-59/5 para evitar el minuto 00, donde GitHub suele tener más carga.
+    # Horario UTC 13-21 = aprox. 8:00 a.m. a 4:59 p.m. Colombia.
+    - cron: "2-59/5 13-21 * * 1-5"
 
 permissions:
   contents: write
 
+# Evita que se acumulen ejecuciones si una corrida se demora más de lo normal.
 concurrency:
-  group: arq-analisis-${{ github.ref }}
+  group: arq-auto-update
   cancel-in-progress: true
 
 jobs:
   analizar:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Instalar librerias
         run: |
@@ -37,14 +44,20 @@ jobs:
       - name: Ejecutar analizador
         run: python analizador_acciones.py
 
-      - name: Guardar resultados en el repositorio
+      - name: Guardar solo los datos necesarios
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add datos_acciones.json analisis_acciones.xlsx
+
+          # Actualiza la rama antes de guardar para evitar conflictos si hubo otra corrida reciente.
+          git pull --rebase origin main || true
+
+          # La página solo necesita datos_acciones.json. No guardamos Excel ni archivos temporales.
+          git add datos_acciones.json
+
           if git diff --cached --quiet; then
             echo "Sin cambios para guardar"
           else
-            git commit -m "Actualizar analisis automatico 5min"
+            git commit -m "Actualizar datos ARQ 5min"
             git push
           fi
