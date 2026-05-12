@@ -35,7 +35,7 @@ ACCIONES_INFO = {
 
     # Finanzas, pagos, trading y cripto relacionadas
     "SOFI": "Fintech", "COIN": "Cripto / Trading", "HOOD": "Trading",
-    "PYPL": "Pagos", "SQ": "Pagos", "V": "Pagos", "MA": "Pagos",
+    "PYPL": "Pagos", "XYZ": "Pagos", "V": "Pagos", "MA": "Pagos",
     "JPM": "Finanzas", "GS": "Finanzas", "BAC": "Finanzas", "MS": "Finanzas",
     "C": "Finanzas", "WFC": "Finanzas", "BLK": "Finanzas", "SCHW": "Finanzas",
     "IBKR": "Trading", "MSTR": "Cripto / Trading", "MARA": "Cripto / Trading",
