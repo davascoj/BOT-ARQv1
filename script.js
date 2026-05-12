@@ -3,6 +3,35 @@ let datosOriginales = [];
 let sectorActivo = "TODOS";
 let contextoMercado = null;
 
+const AUTO_REFRESH_MS = 60 * 1000;
+let autoRefreshActivo = true;
+let ultimaCargaCorrecta = null;
+
+function obtenerRepoGitHub() {
+  const usuario = location.hostname.includes(".github.io")
+    ? location.hostname.split(".github.io")[0]
+    : "davascoj";
+
+  const repoDetectado = location.pathname.split("/").filter(Boolean)[0];
+  const repo = repoDetectado || "Analizador-acciones";
+
+  return { usuario, repo };
+}
+
+function actualizarEstadoAuto(mensaje, error = false) {
+  const autoBox = document.getElementById("autoBox");
+  if (!autoBox) return;
+
+  const hora = new Date().toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+
+  autoBox.textContent = `${mensaje} | Vista revisada: ${hora}`;
+  autoBox.className = error ? "auto-box error" : "auto-box";
+}
+
 async function cargarDatos() {
   const tabla = document.getElementById("tabla");
   const fecha = document.getElementById("fecha");
@@ -27,11 +56,15 @@ async function cargarDatos() {
     pintarResumen();
     renderTabla();
 
+    ultimaCargaCorrecta = new Date();
+    actualizarEstadoAuto("Página actualizando sola cada 60 segundos. GitHub Actions intenta renovar datos cada 5 minutos.");
+
   } catch (e) {
     fecha.textContent = "Sin datos";
     if (marketBox) marketBox.textContent = "Mercado: sin datos";
     if (resumen) resumen.textContent = "No hay resumen disponible.";
-    tabla.innerHTML = `<tr><td colspan="18">No se pudieron cargar datos. Presiona "Ejecutar análisis en GitHub".</td></tr>`;
+    actualizarEstadoAuto("No se pudieron cargar los datos. Revisa que datos_acciones.json exista o ejecuta GitHub Actions manualmente.", true);
+    tabla.innerHTML = `<tr><td colspan="18">No se pudieron cargar datos. Abre GitHub Actions y ejecuta Run workflow.</td></tr>`;
   }
 }
 
@@ -91,7 +124,7 @@ function limpiarBusqueda() {
 
   if (soloCompra) soloCompra.checked = false;
   if (soloHot) soloHot.checked = false;
-  if (ocultarAlto) ocultarAlto.checked = true;
+  if (ocultarAlto) ocultarAlto.checked = false;
 
   renderTabla();
 }
@@ -233,43 +266,20 @@ function renderTabla() {
   });
 }
 
-async function ejecutarAnalisis() {
-  const token = prompt("Pega tu token de GitHub:");
-
-  if (!token) {
-    alert("No pegaste el token.");
-    return;
-  }
-
-  const usuario = "davascoj";
-  const repoDetectado = location.pathname.split("/").filter(Boolean)[0];
-  const repo = repoDetectado || "Analizador-acciones";
+function ejecutarAnalisis() {
+  const { usuario, repo } = obtenerRepoGitHub();
   const workflow = "analizar.yml";
+  const url = `https://github.com/${usuario}/${repo}/actions/workflows/${workflow}`;
 
-  try {
-    const respuesta = await fetch(
-      `https://api.github.com/repos/${usuario}/${repo}/actions/workflows/${workflow}/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Accept": "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28"
-        },
-        body: JSON.stringify({ ref: "main" })
-      }
-    );
-
-    if (respuesta.status === 204) {
-      alert("Análisis enviado a GitHub. Espera 1 a 3 minutos y luego presiona Actualizar vista.");
-    } else {
-      const texto = await respuesta.text();
-      alert("Error al ejecutar análisis: " + texto);
-    }
-
-  } catch (error) {
-    alert("Error: " + error.message);
-  }
+  window.open(url, "_blank");
+  alert("Ya no necesitas pegar token desde la página. Se abrió GitHub Actions. Si quieres forzar una actualización manual, presiona Run workflow.");
 }
 
+
 cargarDatos();
+
+setInterval(() => {
+  if (!document.hidden && autoRefreshActivo) {
+    cargarDatos();
+  }
+}, AUTO_REFRESH_MS);

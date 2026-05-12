@@ -20,9 +20,13 @@
         Mercado: cargando...
       </div>
 
+      <div class="auto-box" id="autoBox">
+        Actualización automática: cargando...
+      </div>
+
       <div class="buttons">
         <button onclick="cargarDatos()">Actualizar vista</button>
-        <button onclick="ejecutarAnalisis()">Ejecutar análisis en GitHub</button>
+        <button onclick="ejecutarAnalisis()">Abrir GitHub Actions</button>
         <button onclick="mostrarTop4()">Top 4 para mañana</button>
       </div>
 
@@ -54,7 +58,7 @@
         </label>
 
         <label>
-          <input type="checkbox" id="ocultarAlto" onchange="renderTabla()" checked>
+          <input type="checkbox" id="ocultarAlto" onchange="renderTabla()">
           Ocultar riesgo alto
         </label>
       </div>
