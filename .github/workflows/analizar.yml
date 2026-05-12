@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Cada 5 minutos, lunes a viernes, de 8:00 a.m. a 4:59 p.m. hora Colombia aprox.
-    # GitHub usa hora UTC. Puede retrasarse algunos minutos si GitHub está con alta carga.
+    # GitHub usa hora UTC. Puede haber retrasos si GitHub está con alta carga.
     - cron: "*/5 13-21 * * 1-5"
 
 permissions:
