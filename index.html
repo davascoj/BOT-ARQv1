@@ -10,6 +10,7 @@
 
 <body>
   <main class="container">
+
     <section class="hero pro-hero">
       <div class="hero-head">
         <div class="brand">
@@ -30,9 +31,15 @@
         momentum, riesgo, confirmación técnica y señal automática.
       </p>
 
+      <div class="info-line">
+        <span>🕒 Hora Colombia: <strong id="horaColombia">Cargando...</strong></span>
+        <span id="fecha">Última actualización: cargando...</span>
+        <span>⏱ Actualización automática cada 5 minutos en horario de mercado</span>
+      </div>
+
       <div class="buttons">
         <button onclick="cargarDatos()">Actualizar vista</button>
-        <button onclick="ejecutarAnalisis()" class="secondary">Abrir GitHub Actions</button>
+        <button onclick="ejecutarAnalisis()" class="secondary">Ejecutar análisis en GitHub</button>
         <button onclick="mostrarTop4()" class="accent">Top 4 para mañana</button>
       </div>
 
@@ -104,9 +111,11 @@
       <div class="topbar">
         <div>
           <h2>Resultados</h2>
-          <p class="muted">Tabla ordenada por señal, riesgo, contexto sectorial, Hot Score, probabilidad y fuerza relativa.</p>
+          <p class="muted">
+            Tabla ordenada por señal, riesgo, contexto sectorial, Hot Score,
+            probabilidad y fuerza relativa.
+          </p>
         </div>
-        <span id="fecha">Última actualización de datos: cargando...</span>
       </div>
 
       <div class="table-wrap">
@@ -137,6 +146,7 @@
         </table>
       </div>
     </section>
+
   </main>
 
   <script src="script.js"></script>
