@@ -3,9 +3,8 @@ name: Analizar acciones
 on:
   workflow_dispatch:
   schedule:
-    # Cada 5 minutos, lunes a viernes, de 8:02 a.m. a 4:57 p.m. Colombia
-    - cron: "2-59/5 8-16 * * 1-5"
-      timezone: "America/Bogota"
+    # PRUEBA: cada 5 minutos, todos los días, todo el día
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
 
 permissions:
   contents: write
@@ -28,6 +27,7 @@ jobs:
       - name: Mostrar tipo de ejecucion
         run: |
           echo "Evento: ${{ github.event_name }}"
+          echo "Schedule exacto: ${{ github.event.schedule }}"
           echo "Fecha UTC:"
           date -u
           echo "Fecha Colombia:"
