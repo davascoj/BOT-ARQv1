@@ -3,9 +3,9 @@ name: Analizar acciones
 on:
   workflow_dispatch:
   schedule:
-    # Cada 5 minutos, lunes a viernes, en horario de mercado aprox. Colombia.
-    # Minutos 02, 07, 12, 17... para evitar el minuto 00.
-    - cron: "2-59/5 13-21 * * 1-5"
+    # Cada 5 minutos, lunes a viernes, de 8:02 a.m. a 4:57 p.m. Colombia
+    - cron: "2-59/5 8-16 * * 1-5"
+      timezone: "America/Bogota"
 
 permissions:
   contents: write
@@ -17,16 +17,21 @@ concurrency:
 jobs:
   analizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    timeout-minutes: 20
 
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Mostrar tipo de ejecucion
+        run: |
+          echo "Evento: ${{ github.event_name }}"
+          echo "Fecha UTC:"
+          date -u
+          echo "Fecha Colombia:"
+          TZ=America/Bogota date
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -41,12 +46,10 @@ jobs:
       - name: Ejecutar analizador
         run: python analizador_acciones.py
 
-      - name: Guardar solo los datos necesarios
+      - name: Guardar datos actualizados
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-
-          git pull --rebase origin main || true
 
           git add datos_acciones.json
 
