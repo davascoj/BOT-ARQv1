@@ -2,9 +2,18 @@ name: Analizar acciones
 
 on:
   workflow_dispatch:
+
   schedule:
-    # PRUEBA: correr cada 5 minutos, todo el día
-    - cron: "*/5 * * * *"
+    # Cada 5 minutos, pero corrido a minutos menos usados por GitHub
+    # 3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53, 58
+    - cron: "3-58/5 * * * *"
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/analizar.yml"
+      - "analizador_acciones.py"
 
 permissions:
   contents: write
@@ -28,6 +37,7 @@ jobs:
         run: |
           echo "Evento: ${{ github.event_name }}"
           echo "Schedule: ${{ github.event.schedule }}"
+          echo "Rama: ${{ github.ref }}"
           echo "Fecha UTC:"
           date -u
           echo "Fecha Colombia:"
