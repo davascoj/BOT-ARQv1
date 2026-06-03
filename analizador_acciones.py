@@ -1,15 +1,10 @@
 import json
-import os
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
-
-ZONA_HORARIA = ZoneInfo("America/Bogota")
-HISTORIAL_FILE = "historial_senales.json"
-HISTORIAL_XLSX = "historial_senales.xlsx"
 
 ACCIONES_INFO = {
     # Tecnología, IA y software
@@ -67,81 +62,13 @@ ACCIONES_INFO = {
 
     # Temáticas de alta volatilidad / innovación
     "RKLB": "Espacial", "IONQ": "Computación cuántica", "QBTS": "Computación cuántica",
-    "RGTI": "Computación cuántica", "JOBY": "Movilidad aérea", "ACHR": "Movilidad aérea",
-
-    # Ampliación ARQ - más acciones para analizar
-    # Tecnología / nube / software
-    "CSCO": "Tecnología", "HPE": "Tecnología", "HPQ": "Tecnología",
-    "FSLY": "Tecnología", "TWLO": "Tecnología",
-    "DOCU": "Tecnología", "ZM": "Tecnología", "PATH": "IA / Software",
-    "U": "Software", "ESTC": "Datos / Software", "DT": "Software",
-    "GTLB": "Software", "S": "Ciberseguridad", "TENB": "Ciberseguridad",
-    "CYBR": "Ciberseguridad", "GEN": "Ciberseguridad",
-
-    # Chips, data centers y hardware IA
-    "VRT": "Data Center / IA", "COHR": "Fotónica / IA", "LITE": "Fotónica / IA",
-    "CIEN": "Redes / IA", "WDC": "Almacenamiento", "STX": "Almacenamiento",
-    "SNDK": "Almacenamiento", "GFS": "Chips", "TER": "Equipos chips",
-    "ENTG": "Equipos chips", "WOLF": "Chips", "ALAB": "Data Center / IA",
-
-    # IA especulativa, robótica y automatización
-    "BBAI": "IA", "SERV": "Robótica", "SYM": "Robótica",
-    "ISRG": "Robótica / Salud", "ROK": "Automatización", "ABBNY": "Automatización",
-
-    # Autos eléctricos, movilidad y baterías
-    "RIVN": "Autos eléctricos", "LCID": "Autos eléctricos", "NIO": "Autos eléctricos",
-    "LI": "Autos eléctricos", "XPEV": "Autos eléctricos", "BYDDY": "Autos eléctricos",
-    "GM": "Autos", "F": "Autos", "TM": "Autos", "HMC": "Autos",
-    "QS": "Baterías", "ENVX": "Baterías", "ALB": "Litio", "LAC": "Litio",
-
-    # Fintech, bancos, seguros y mercados
-    "AXP": "Pagos", "FI": "Pagos", "FIS": "Pagos", "GPN": "Pagos",
-    "NU": "Fintech", "AFRM": "Fintech", "TOST": "Fintech", "BILL": "Fintech",
-    "KKR": "Finanzas", "ARES": "Finanzas", "BX": "Finanzas", "APO": "Finanzas",
-    "CME": "Trading", "ICE": "Trading", "SPGI": "Finanzas", "MCO": "Finanzas",
-    "AFL": "Seguros", "TRV": "Seguros", "PGR": "Seguros",
-
-    # Energía tradicional y renovables
-    "VLO": "Energía", "MPC": "Energía", "PSX": "Energía", "KMI": "Energía",
-    "WMB": "Energía", "OKE": "Energía", "BKR": "Energía", "RIG": "Energía",
-    "NEE": "Energía renovable", "ENPH": "Energía renovable", "SEDG": "Energía renovable",
-    "FSLR": "Energía renovable", "RUN": "Energía renovable", "BE": "Energía renovable",
-
-    # Salud, biotecnología y farmacéuticas
-    "VRTX": "Salud", "REGN": "Salud", "AMGN": "Salud", "GILD": "Salud",
-    "SYK": "Salud", "MDT": "Salud", "BSX": "Salud",
-    "DHR": "Salud", "ZTS": "Salud", "HIMS": "Salud", "TDOC": "Salud",
-    "VEEV": "Salud / Software", "ALNY": "Biotecnología", "MRNA": "Biotecnología",
-
-    # Consumo, retail, viajes y entretenimiento
-    "DIS": "Entretenimiento", "ROKU": "Entretenimiento", "SPOT": "Entretenimiento",
-    "ABNB": "Viajes", "BKNG": "Viajes", "EXPE": "Viajes", "DAL": "Aerolíneas",
-    "UAL": "Aerolíneas", "AAL": "Aerolíneas", "CCL": "Cruceros", "RCL": "Cruceros",
-    "NKE": "Consumo", "LULU": "Consumo", "TGT": "Consumo", "TJX": "Consumo",
-    "CMG": "Consumo", "YUM": "Consumo", "PEP": "Consumo", "KO": "Consumo",
-    "PG": "Consumo defensivo", "PM": "Consumo defensivo",
-
-    # Industrial, defensa, infraestructura y construcción
-    "LMT": "Defensa", "RTX": "Defensa", "NOC": "Defensa", "GD": "Defensa",
-    "HON": "Industrial", "ETN": "Industrial", "PH": "Industrial", "EMR": "Industrial",
-    "FIX": "Construcción", "URI": "Construcción", "BLDR": "Construcción", "VMC": "Materiales",
-    "MLM": "Materiales", "CRH": "Materiales", "NEM": "Oro", "FCX": "Minería",
-
-    # ETFs adicionales para ver mercado / sectores
-    "XLU": "ETF Utilities", "XLI": "ETF Industrial", "XLY": "ETF Consumo",
-    "XLP": "ETF Consumo defensivo", "XLC": "ETF Comunicaciones", "XLRE": "ETF Real Estate",
-    "XLB": "ETF Materiales", "IBB": "ETF Biotech", "XBI": "ETF Biotech",
-    "BOTZ": "ETF Robótica", "ROBO": "ETF Robótica", "CIBR": "ETF Ciberseguridad",
-    "HACK": "ETF Ciberseguridad", "TAN": "ETF Solar", "ICLN": "ETF Energía limpia",
-    "URA": "ETF Uranio", "GLD": "ETF Oro", "SLV": "ETF Plata", "TLT": "ETF Bonos",
-    "HYG": "ETF Bonos", "VTI": "ETF Mercado", "SCHD": "ETF Dividendos"
-
+    "RGTI": "Computación cuántica", "JOBY": "Movilidad aérea", "ACHR": "Movilidad aérea"
 }
 
 ACCIONES = list(ACCIONES_INFO.keys())
 
 # Contexto externo por tipo de acción.
-# Estos tickers no necesariamente se muestran en tabla; son drivers para confirmar si el sector acompaña.
+# Estos tickers NO necesariamente se muestran en tabla; son "drivers" para confirmar si el sector acompaña.
 DRIVERS_CONTEXTO = {
     "chips": ["SOXX", "QQQ"],
     "energia": ["XLE", "CL=F"],
@@ -157,14 +84,6 @@ def numero(valor):
         return float(valor)
     except Exception:
         return None
-
-
-def hoy_ymd():
-    return datetime.now(ZONA_HORARIA).strftime("%Y-%m-%d")
-
-
-def fecha_visible():
-    return datetime.now(ZONA_HORARIA).strftime("%d-%m-%Y %I:%M %p Colombia")
 
 
 def limpiar_df(df):
@@ -212,17 +131,6 @@ def cambio_pct(close, dias):
     if not actual or not anterior:
         return 0
     return ((actual / anterior) - 1) * 100
-
-
-def unir_unicos(items, limite=5):
-    vistos = []
-    for item in items:
-        if not item:
-            continue
-        texto = str(item).strip()
-        if texto and texto not in vistos:
-            vistos.append(texto)
-    return "; ".join(vistos[:limite])
 
 
 def evaluar_driver(ticker):
@@ -303,12 +211,7 @@ def contexto_mercado():
             score = -8
 
         def crear_contexto(nombre, tickers):
-            datos = [
-                drivers[t]
-                for t in tickers
-                if t in drivers and drivers[t].get("estado") != "SIN DATOS"
-            ]
-
+            datos = [drivers[t] for t in tickers if t in drivers and drivers[t].get("estado") != "SIN DATOS"]
             if not datos:
                 return {
                     "estado": "SIN DATOS",
@@ -375,21 +278,22 @@ def tipo_contexto_por_accion(ticker, sector):
     """Define qué contexto externo debe confirmar cada acción."""
     sector_txt = str(sector or "")
 
+    # Cripto-relacionadas: dependen mucho de BTC/ETH.
     if ticker in ["COIN", "MSTR", "MARA", "RIOT"] or "Cripto" in sector_txt:
         return "cripto"
 
+    # Energía: depende de XLE y petróleo.
     if ticker in ["XOM", "CVX", "SLB", "OXY", "COP", "LNG", "EOG", "FANG", "DVN", "HAL"] or "Energía" in sector_txt:
         return "energia"
 
+    # Chips/semiconductores: SOXX + QQQ.
     if ticker in ["NVDA", "AMD", "MU", "AVGO", "KLAC", "AMAT"] or "Chips" in sector_txt or "Memoria" in sector_txt:
         return "chips"
 
+    # Tech/IA/innovación: QQQ + ARKK + SPY.
     if (
-        "Tecnología" in sector_txt
-        or "IA" in sector_txt
-        or "Software" in sector_txt
-        or "Ciberseguridad" in sector_txt
-        or "Computación" in sector_txt
+        "Tecnología" in sector_txt or "IA" in sector_txt or "Software" in sector_txt
+        or "Ciberseguridad" in sector_txt or "Computación" in sector_txt
         or ticker in ["PLTR", "TSLA", "SOUN", "AI", "ARKK"]
     ):
         return "tech_ia"
@@ -419,6 +323,7 @@ def aplicar_contexto_sector(ticker, sector, mercado, razones, alertas):
     elif estado == "NEUTRO +":
         razones.append(f"Sector ligeramente positivo: {detalle}")
 
+    # No dejar que el contexto sectorial domine todo el score, solo confirmar o filtrar.
     ajuste = max(-8, min(7, ajuste))
 
     return ajuste, estado, detalle
@@ -458,12 +363,7 @@ def analizar(ticker, mercado):
         macd_hist_val = numero(macd_hist.iloc[-1])
         macd_hist_prev = numero(macd_hist.iloc[-2])
 
-        necesarios = [
-            precio, ma10, ma20, ma50, ma200, rsi, volumen_actual,
-            volumen_prom, max20, min20, atr, macd_val, macd_sig,
-            macd_hist_val, macd_hist_prev
-        ]
-
+        necesarios = [precio, ma10, ma20, ma50, ma200, rsi, volumen_actual, volumen_prom, max20, min20, atr, macd_val, macd_sig, macd_hist_val, macd_hist_prev]
         if any(v is None for v in necesarios):
             return None
 
@@ -476,6 +376,7 @@ def analizar(ticker, mercado):
         distancia_max20 = ((precio / max20) - 1) * 100 if max20 else 0
         posicion_rango20 = ((precio - min20) / (max20 - min20)) * 100 if max20 != min20 else 50
 
+        # Fuerza relativa aproximada contra QQQ en 20 días.
         fuerza_relativa = momentum_20d - mercado.get("qqq20", 0)
 
         score = 45
@@ -483,18 +384,18 @@ def analizar(ticker, mercado):
         alertas = []
         sector = ACCIONES_INFO.get(ticker, "Otro")
 
+        # Filtro de mercado: evita comprar agresivo cuando el mercado está débil.
         score += mercado.get("score", 0)
-
         if mercado.get("estado") in ["ALCISTA", "NEUTRO +"]:
             razones.append(f"Mercado {mercado.get('estado')}")
         elif mercado.get("estado") == "DÉBIL":
             alertas.append("Mercado débil")
 
-        ajuste_sector, contexto_sector, detalle_sector = aplicar_contexto_sector(
-            ticker, sector, mercado, razones, alertas
-        )
+        # Nuevo: confirmación por contexto de sector/driver.
+        ajuste_sector, contexto_sector, detalle_sector = aplicar_contexto_sector(ticker, sector, mercado, razones, alertas)
         score += ajuste_sector
 
+        # Tendencia por medias móviles.
         if precio > ma20:
             score += 7
             razones.append("Precio sobre MA20")
@@ -515,6 +416,7 @@ def analizar(ticker, mercado):
             score -= 6
             alertas.append("Tendencia larga débil")
 
+        # RSI: se premia fuerza sana, no sobrecompra extrema.
         if 48 <= rsi <= 65:
             score += 12
             razones.append("RSI saludable")
@@ -530,6 +432,7 @@ def analizar(ticker, mercado):
         elif 38 <= rsi < 48:
             score -= 2
 
+        # MACD: mejor si cruza positivo y el histograma crece.
         if macd_val > macd_sig and macd_hist_val > 0:
             score += 10
             razones.append("MACD positivo")
@@ -545,6 +448,7 @@ def analizar(ticker, mercado):
         else:
             score -= 2
 
+        # Volumen: confirma interés, pero volumen enorme con precio extendido puede ser riesgo.
         if volumen_relativo >= 1.8 and momentum_5d > 0:
             score += 10
             razones.append("Volumen fuerte")
@@ -555,6 +459,7 @@ def analizar(ticker, mercado):
             score -= 4
             alertas.append("Volumen bajo")
 
+        # Momentum: se busca fuerza, pero se castiga si está demasiado corrida.
         if 1 <= momentum_5d <= 6:
             score += 8
             razones.append("Momentum 5D sano")
@@ -580,8 +485,8 @@ def analizar(ticker, mercado):
             score -= 6
             alertas.append("Débil vs QQQ")
 
+        # Ruptura: no basta tocar máximo; debe estar fuerte en rango y con volumen.
         confirmacion = "MEDIA"
-
         if precio >= max20 * 0.985 and posicion_rango20 >= 75 and volumen_relativo >= 1.1:
             score += 9
             confirmacion = "ALTA"
@@ -594,6 +499,7 @@ def analizar(ticker, mercado):
             confirmacion = "BAJA"
             alertas.append("Lejos del máximo 20D")
 
+        # Castigo por precio demasiado alejado de MA20.
         if distancia_ma20 > 12:
             score -= 10
             alertas.append("Muy alejada de MA20")
@@ -601,6 +507,7 @@ def analizar(ticker, mercado):
             score -= 5
             alertas.append("Algo extendida sobre MA20")
 
+        # Volatilidad: ATR muy alto puede dañar entradas.
         if atr_pct > 9:
             score -= 10
             alertas.append("Volatilidad muy alta")
@@ -613,17 +520,16 @@ def analizar(ticker, mercado):
         score = max(0, min(96, score))
 
         riesgo = "BAJO"
-
         if rsi > 72 or momentum_5d > 10 or atr_pct > 9 or distancia_ma20 > 12:
             riesgo = "ALTO"
         elif rsi > 65 or momentum_5d > 6 or atr_pct > 6 or distancia_ma20 > 7:
             riesgo = "MEDIO"
 
+        # Si el sector no acompaña, no lo marcamos como bajo aunque los indicadores internos estén bien.
         if contexto_sector == "NO ACOMPAÑA" and riesgo == "BAJO":
             riesgo = "MEDIO"
 
         hot_score = 0
-
         if score >= 82:
             hot_score += 1
         if volumen_relativo >= 1.25:
@@ -652,29 +558,14 @@ def analizar(ticker, mercado):
         objetivo = round(precio + (atr * 2.2), 2)
         relacion_rr = round((objetivo - precio) / max(precio - stop, 0.01), 2)
 
-        if (
-            score >= 84
-            and riesgo != "ALTO"
-            and confirmacion == "ALTA"
-            and mercado.get("estado") != "DÉBIL"
-            and contexto_sector != "NO ACOMPAÑA"
-        ):
+        if score >= 84 and riesgo != "ALTO" and confirmacion == "ALTA" and mercado.get("estado") != "DÉBIL" and contexto_sector != "NO ACOMPAÑA":
             senal = "COMPRA FUERTE"
-            senal_bot = "BUY STRONG"
-        elif (
-            score >= 74
-            and riesgo != "ALTO"
-            and mercado.get("estado") != "DÉBIL"
-            and contexto_sector != "NO ACOMPAÑA"
-        ):
+        elif score >= 74 and riesgo != "ALTO" and mercado.get("estado") != "DÉBIL" and contexto_sector != "NO ACOMPAÑA":
             senal = "POSIBLE COMPRA"
-            senal_bot = "BUY"
         elif score >= 60:
             senal = "VIGILAR"
-            senal_bot = "HOLD"
         else:
             senal = "NO COMPRAR"
-            senal_bot = "SELL / EVITAR"
 
         return {
             "Accion": ticker,
@@ -703,9 +594,8 @@ def analizar(ticker, mercado):
             "Riesgo": riesgo,
             "Hot Score": hot,
             "Senal": senal,
-            "Senal Bot": senal_bot,
-            "Razones": unir_unicos(razones, 5),
-            "Alertas": unir_unicos(alertas, 5),
+            "Razones": "; ".join(razones[:5]),
+            "Alertas": "; ".join(alertas[:5]),
         }
 
     except Exception as e:
@@ -736,251 +626,25 @@ def prioridad_contexto(ctx):
         return 3
     if ctx == "NEUTRO +":
         return 2
-    if ctx in ["NEUTRO", "GENERAL"]:
+    if ctx == "NEUTRO":
         return 1
     return 0
 
 
-def cargar_historial():
-    if not os.path.exists(HISTORIAL_FILE):
-        return {"version": 1, "actualizado": "", "operaciones": [], "resumen": {}}
-
-    try:
-        with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if not isinstance(data, dict):
-            data = {}
-
-        if not isinstance(data.get("operaciones"), list):
-            data["operaciones"] = []
-
-        data.setdefault("version", 1)
-        data.setdefault("resumen", {})
-
-        return data
-
-    except Exception as e:
-        print(f"No se pudo leer historial: {e}")
-        return {"version": 1, "actualizado": "", "operaciones": [], "resumen": {}}
-
-
-def dias_desde(fecha_entrada):
-    try:
-        inicio = datetime.strptime(fecha_entrada, "%Y-%m-%d").date()
-        actual = datetime.now(ZONA_HORARIA).date()
-        return max(0, (actual - inicio).days)
-    except Exception:
-        return 0
-
-
-def actualizar_historial(historial, resultados):
-    """
-    Simulación tipo paper tracking:
-    - Abre operación cuando aparece BUY STRONG o BUY.
-    - Cierra operación si toca stop, objetivo o si la señal se vuelve SELL / EVITAR después de al menos 1 día.
-    - No ejecuta órdenes reales. Solo mide si las señales habrían ganado o perdido.
-    """
-
-    hoy = hoy_ymd()
-    resultados_por_ticker = {r["Accion"]: r for r in resultados}
-    operaciones = historial.get("operaciones", [])
-
-    for op in operaciones:
-        if op.get("estado") != "ABIERTA":
-            continue
-
-        ticker = op.get("accion") or op.get("Accion")
-        r = resultados_por_ticker.get(ticker)
-
-        if not r:
-            continue
-
-        precio_actual = float(
-            r.get("Precio actual", op.get("precio_actual", op.get("precio_entrada", 0))) or 0
-        )
-        precio_entrada = float(op.get("precio_entrada") or precio_actual or 0)
-
-        if precio_entrada <= 0:
-            continue
-
-        ganancia_pct = ((precio_actual / precio_entrada) - 1) * 100
-
-        op["precio_actual"] = round(precio_actual, 2)
-        op["ganancia_pct"] = round(ganancia_pct, 2)
-        op["dias_abierta"] = dias_desde(op.get("fecha_entrada", hoy))
-        op["senal_actual"] = r.get("Senal", "")
-        op["senal_bot_actual"] = r.get("Senal Bot", "")
-        op["probabilidad_actual"] = r.get("Probabilidad tecnica", 0)
-        op["riesgo_actual"] = r.get("Riesgo", "")
-        op["max_ganancia_pct"] = round(
-            max(float(op.get("max_ganancia_pct", ganancia_pct)), ganancia_pct), 2
-        )
-        op["max_perdida_pct"] = round(
-            min(float(op.get("max_perdida_pct", ganancia_pct)), ganancia_pct), 2
-        )
-
-        stop = float(op.get("stop") or 0)
-        objetivo = float(op.get("objetivo") or 0)
-        senal_bot_actual = r.get("Senal Bot", "")
-
-        cerrar = False
-        resultado = "EN SEGUIMIENTO"
-        tipo_cierre = ""
-
-        if stop > 0 and precio_actual <= stop:
-            cerrar = True
-            resultado = "PERDIDA STOP"
-            tipo_cierre = "STOP"
-        elif objetivo > 0 and precio_actual >= objetivo:
-            cerrar = True
-            resultado = "GANADA OBJETIVO"
-            tipo_cierre = "OBJETIVO"
-        elif senal_bot_actual == "SELL / EVITAR" and op.get("dias_abierta", 0) >= 1:
-            cerrar = True
-            resultado = "GANADA POR SEÑAL" if ganancia_pct >= 0 else "PERDIDA POR SEÑAL"
-            tipo_cierre = "SEÑAL SELL"
-
-        if cerrar:
-            op["estado"] = "CERRADA"
-            op["fecha_cierre"] = hoy
-            op["precio_cierre"] = round(precio_actual, 2)
-            op["ganancia_pct_final"] = round(ganancia_pct, 2)
-            op["resultado"] = resultado
-            op["tipo_cierre"] = tipo_cierre
-        else:
-            op["resultado"] = resultado
-
-    abiertas = {op.get("accion") for op in operaciones if op.get("estado") == "ABIERTA"}
-    creadas_hoy = {(op.get("accion"), op.get("fecha_entrada")) for op in operaciones}
-
-    for r in resultados:
-        ticker = r.get("Accion")
-        senal_bot = r.get("Senal Bot")
-        riesgo = r.get("Riesgo")
-        rr = float(r.get("R/R") or 0)
-
-        if senal_bot not in ["BUY STRONG", "BUY"]:
-            continue
-
-        if riesgo == "ALTO":
-            continue
-
-        if rr < 1.30:
-            continue
-
-        if ticker in abiertas:
-            continue
-
-        if (ticker, hoy) in creadas_hoy:
-            continue
-
-        precio = float(r.get("Precio actual") or 0)
-
-        nueva = {
-            "id": f"{hoy}-{ticker}",
-            "fecha_entrada": hoy,
-            "accion": ticker,
-            "sector": r.get("Sector", "Otro"),
-            "senal_entrada": r.get("Senal", ""),
-            "senal_bot_entrada": senal_bot,
-            "probabilidad_entrada": r.get("Probabilidad tecnica", 0),
-            "riesgo_entrada": riesgo,
-            "precio_entrada": round(precio, 2),
-            "precio_actual": round(precio, 2),
-            "entrada_min": r.get("Entrada min"),
-            "entrada_max": r.get("Entrada max"),
-            "stop": r.get("Stop loss"),
-            "objetivo": r.get("Objetivo"),
-            "rr": r.get("R/R"),
-            "estado": "ABIERTA",
-            "resultado": "EN SEGUIMIENTO",
-            "ganancia_pct": 0,
-            "ganancia_pct_final": None,
-            "max_ganancia_pct": 0,
-            "max_perdida_pct": 0,
-            "dias_abierta": 0,
-            "senal_actual": r.get("Senal", ""),
-            "senal_bot_actual": senal_bot,
-            "probabilidad_actual": r.get("Probabilidad tecnica", 0),
-            "riesgo_actual": riesgo,
-        }
-
-        operaciones.append(nueva)
-        abiertas.add(ticker)
-        creadas_hoy.add((ticker, hoy))
-
-    operaciones = sorted(
-        operaciones,
-        key=lambda x: (
-            1 if x.get("estado") == "ABIERTA" else 0,
-            x.get("fecha_entrada", ""),
-            x.get("accion", ""),
-        ),
-        reverse=True,
-    )[:300]
-
-    cerradas = [op for op in operaciones if op.get("estado") == "CERRADA"]
-    abiertas_ops = [op for op in operaciones if op.get("estado") == "ABIERTA"]
-    ganadas = [op for op in cerradas if str(op.get("resultado", "")).startswith("GANADA")]
-    perdidas = [op for op in cerradas if str(op.get("resultado", "")).startswith("PERDIDA")]
-
-    win_rate = round((len(ganadas) / len(cerradas)) * 100, 2) if cerradas else 0
-    rentabilidad_cerrada = round(sum(float(op.get("ganancia_pct_final") or 0) for op in cerradas), 2)
-    rentabilidad_abierta = round(sum(float(op.get("ganancia_pct") or 0) for op in abiertas_ops), 2)
-    promedio_cerradas = round(rentabilidad_cerrada / len(cerradas), 2) if cerradas else 0
-
-    resumen = {
-        "total_operaciones": len(operaciones),
-        "abiertas": len(abiertas_ops),
-        "cerradas": len(cerradas),
-        "ganadas": len(ganadas),
-        "perdidas": len(perdidas),
-        "win_rate": win_rate,
-        "rentabilidad_cerrada_pct": rentabilidad_cerrada,
-        "rentabilidad_abierta_pct": rentabilidad_abierta,
-        "promedio_cerradas_pct": promedio_cerradas,
-        "nota": "Simulación con una unidad igual por operación; no ejecuta compras reales.",
-    }
-
-    historial["actualizado"] = fecha_visible()
-    historial["operaciones"] = operaciones
-    historial["resumen"] = resumen
-
-    return historial
-
-
-def guardar_historial(historial):
-    with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
-        json.dump(historial, f, ensure_ascii=False, indent=2)
-
-    ops = historial.get("operaciones", [])
-
-    if ops:
-        pd.DataFrame(ops).to_excel(HISTORIAL_XLSX, index=False)
-    else:
-        pd.DataFrame(
-            columns=["fecha_entrada", "accion", "estado", "resultado"]
-        ).to_excel(HISTORIAL_XLSX, index=False)
-
-
 def main():
     resultados = []
-
     mercado = contexto_mercado()
     print(f"Contexto mercado: {mercado}")
 
     for ticker in ACCIONES:
         print(f"Analizando {ticker}...")
         r = analizar(ticker, mercado)
-
         if r:
             resultados.append(r)
             print("OK")
         else:
             print("SIN DATOS")
-
-        time.sleep(0.35)
+        time.sleep(0.5)
 
     resultados = sorted(
         resultados,
@@ -996,26 +660,18 @@ def main():
         reverse=True,
     )
 
-    historial = cargar_historial()
-    historial = actualizar_historial(historial, resultados)
-    guardar_historial(historial)
-
     salida = {
-        "actualizado": fecha_visible(),
+        "actualizado": datetime.now(ZoneInfo("America/Bogota")).strftime("%d-%m-%Y %I:%M %p Colombia"),
+        "universo_configurado": len(ACCIONES),
+        "acciones_con_datos": len(resultados),
         "contexto_mercado": mercado,
         "resultados": resultados,
-        "historial": {
-            "actualizado": historial.get("actualizado", ""),
-            "resumen": historial.get("resumen", {}),
-            "operaciones": historial.get("operaciones", [])[:120],
-        },
     }
 
     with open("datos_acciones.json", "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, indent=2)
 
     pd.DataFrame(resultados).to_excel("analisis_acciones.xlsx", index=False)
-
     print("ARCHIVOS GENERADOS")
 
 

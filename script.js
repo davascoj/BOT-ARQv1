@@ -2,369 +2,60 @@ let datosGlobales = [];
 let datosOriginales = [];
 let sectorActivo = "TODOS";
 let contextoMercado = null;
-let historialOperaciones = [];
-let historialResumen = {};
-const AUTO_REFRESH_MS = 60 * 1000;
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 let autoRefreshActivo = true;
+let filasAbiertas = new Set();
 
-function safe(valor) {
-  return String(valor ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+function obtenerRepoGitHub() {
+  const usuario = location.hostname.includes(".github.io")
+    ? location.hostname.split(".github.io")[0]
+    : "davascoj";
 
-function numero(valor, decimales = 2) {
-  const n = Number(valor);
-  if (!Number.isFinite(n)) return "";
-  return n.toFixed(decimales).replace(/\.00$/, "");
-}
-
-function actualizarAutoRefreshInfo(mensaje = "") {
-  const info = document.getElementById("autoRefreshInfo");
-  if (!info) return;
-  const hora = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  info.textContent = mensaje || `Vista actualizada a las ${hora}. Se vuelve a refrescar sola cada 60 segundos. Los datos del mercado los actualiza GitHub Actions cada 5 minutos en horario de mercado.`;
-}
-
-async function cargarDatos() {
-  const tabla = document.getElementById("tabla");
-  const fecha = document.getElementById("fecha");
-  const marketBox = document.getElementById("marketBox");
-  const resumen = document.getElementById("resumen");
-  const tablaHistorial = document.getElementById("tablaHistorial");
-
-  tabla.innerHTML = `<tr><td colspan="19">Cargando datos...</td></tr>`;
-  if (resumen) resumen.textContent = "Cargando resumen...";
-  if (tablaHistorial) tablaHistorial.innerHTML = `<tr><td colspan="13">Cargando historial...</td></tr>`;
-
-  try {
-    const resp = await fetch("datos_acciones.json?nocache=" + Date.now());
-    if (!resp.ok) throw new Error("No existe datos_acciones.json todavía");
-
-    const data = await resp.json();
-    fecha.textContent = "Última actualización: " + (data.actualizado || "sin fecha");
-    actualizarAutoRefreshInfo();
-
-    contextoMercado = data.contexto_mercado || null;
-    datosGlobales = data.resultados || [];
-    datosOriginales = data.resultados || [];
-    historialOperaciones = data.historial?.operaciones || [];
-    historialResumen = data.historial?.resumen || {};
-
-    const historialFecha = document.getElementById("historialFecha");
-    if (historialFecha) historialFecha.textContent = "Actualizado: " + (data.historial?.actualizado || data.actualizado || "sin fecha");
-
-    pintarMercado();
-    pintarResumen();
-    renderTabla();
-    pintarHistorialResumen();
-    renderHistorial();
-
-  } catch (e) {
-    fecha.textContent = "Sin datos";
-    actualizarAutoRefreshInfo("Sin datos cargados. Espera a que GitHub Actions termine la primera actualización automática o ejecútalo manualmente desde Actions.");
-    if (marketBox) marketBox.textContent = "Mercado: sin datos";
-    if (resumen) resumen.textContent = "No hay resumen disponible.";
-    tabla.innerHTML = `<tr><td colspan="19">No se pudieron cargar datos todavía. Revisa que GitHub Actions haya terminado y que exista datos_acciones.json.</td></tr>`;
-    if (tablaHistorial) tablaHistorial.innerHTML = `<tr><td colspan="13">No hay historial todavía.</td></tr>`;
-  }
-}
-
-function pintarMercado() {
-  const marketBox = document.getElementById("marketBox");
-  if (!marketBox) return;
-
-  if (!contextoMercado) {
-    marketBox.textContent = "Mercado: sin datos";
-    marketBox.className = "market-box";
-    return;
-  }
-
-  const estado = contextoMercado.estado || "NEUTRO";
-  const spy = contextoMercado.spy20 ?? 0;
-  const qqq = contextoMercado.qqq20 ?? 0;
-
-  marketBox.textContent = `Mercado: ${estado} | SPY 20D: ${spy}% | QQQ 20D: ${qqq}%`;
-  marketBox.className = "market-box " + estado.toLowerCase().replace(" ", "-").replace("é", "e").replace("+", "plus");
-}
-
-function pintarResumen() {
-  const resumen = document.getElementById("resumen");
-  if (!resumen) return;
-
-  const total = datosOriginales.length;
-  const fuertes = datosOriginales.filter(r => r.Senal === "COMPRA FUERTE").length;
-  const posibles = datosOriginales.filter(r => r.Senal === "POSIBLE COMPRA").length;
-  const botBuy = datosOriginales.filter(r => ["BUY STRONG", "BUY"].includes(String(r["Senal Bot"] || ""))).length;
-  const alto = datosOriginales.filter(r => r.Riesgo === "ALTO").length;
-
-  resumen.innerHTML = `
-    <div><strong>${total}</strong><span>acciones analizadas</span></div>
-    <div><strong>${fuertes}</strong><span>compra fuerte</span></div>
-    <div><strong>${posibles}</strong><span>posible compra</span></div>
-    <div><strong>${botBuy}</strong><span>señales BUY bot</span></div>
-    <div><strong>${alto}</strong><span>riesgo alto</span></div>
-  `;
-}
-
-function pintarHistorialResumen() {
-  const caja = document.getElementById("historialResumen");
-  if (!caja) return;
-
-  const r = historialResumen || {};
-  caja.innerHTML = `
-    <div><strong>${r.abiertas ?? 0}</strong><span>abiertas</span></div>
-    <div><strong>${r.cerradas ?? 0}</strong><span>cerradas</span></div>
-    <div><strong>${r.ganadas ?? 0}</strong><span>ganadas</span></div>
-    <div><strong>${r.perdidas ?? 0}</strong><span>perdidas</span></div>
-    <div><strong>${numero(r.win_rate ?? 0)}%</strong><span>acierto cerrado</span></div>
-    <div><strong>${numero(r.rentabilidad_cerrada_pct ?? 0)}%</strong><span>rentab. cerrada</span></div>
-    <div><strong>${numero(r.rentabilidad_abierta_pct ?? 0)}%</strong><span>rentab. abierta</span></div>
-  `;
-}
-
-function filtrarSector(sector) {
-  datosGlobales = [...datosOriginales];
-  sectorActivo = sector;
-  renderTabla();
-}
-
-function limpiarBusqueda() {
-  const buscar = document.getElementById("buscarAccion");
-  if (buscar) buscar.value = "";
-
-  datosGlobales = [...datosOriginales];
-  sectorActivo = "TODOS";
-
-  const soloCompra = document.getElementById("soloCompra");
-  const soloHot = document.getElementById("soloHot");
-  const ocultarAlto = document.getElementById("ocultarAlto");
-
-  if (soloCompra) soloCompra.checked = false;
-  if (soloHot) soloHot.checked = false;
-  if (ocultarAlto) ocultarAlto.checked = false;
-
-  renderTabla();
-}
-
-function claseProbabilidad(prob) {
-  if (prob >= 84) return "prob-verde";
-  if (prob >= 70) return "prob-amarillo";
-  return "prob-rojo";
-}
-
-function prioridadSenal(senal) {
-  if (senal === "COMPRA FUERTE") return 3;
-  if (senal === "POSIBLE COMPRA") return 2;
-  if (senal === "VIGILAR") return 1;
-  return 0;
-}
-
-function prioridadRiesgo(riesgo) {
-  if (riesgo === "BAJO") return 2;
-  if (riesgo === "MEDIO") return 1;
-  return 0;
-}
-
-function mostrarTop4() {
-  let datos = [...datosOriginales];
-
-  datos = datos.filter(r =>
-    ["BUY STRONG", "BUY"].includes(String(r["Senal Bot"] || "")) &&
-    ["BAJO", "MEDIO"].includes(r.Riesgo)
-  );
-
-  datos.sort(ordenRanking);
-  datosGlobales = datos.slice(0, 4);
-  sectorActivo = "TODOS";
-
-  const buscar = document.getElementById("buscarAccion");
-  const soloCompra = document.getElementById("soloCompra");
-  const soloHot = document.getElementById("soloHot");
-  const ocultarAlto = document.getElementById("ocultarAlto");
-
-  if (buscar) buscar.value = "";
-  if (soloCompra) soloCompra.checked = false;
-  if (soloHot) soloHot.checked = false;
-  if (ocultarAlto) ocultarAlto.checked = false;
-
-  renderTabla();
-}
-
-function ordenRanking(a, b) {
-  const aHot = String(a["Hot Score"] || "").length;
-  const bHot = String(b["Hot Score"] || "").length;
-
-  return (
-    prioridadSenal(b.Senal) - prioridadSenal(a.Senal) ||
-    prioridadRiesgo(b.Riesgo) - prioridadRiesgo(a.Riesgo) ||
-    bHot - aHot ||
-    Number(b["Probabilidad tecnica"] || 0) - Number(a["Probabilidad tecnica"] || 0) ||
-    Number(b["Fuerza relativa"] || 0) - Number(a["Fuerza relativa"] || 0) ||
-    Number(a["ATR %"] || 99) - Number(b["ATR %"] || 99)
-  );
-}
-
-function claseBot(bot) {
-  const b = String(bot || "");
-  if (b === "BUY STRONG") return "bot-buy-strong";
-  if (b === "BUY") return "bot-buy";
-  if (b === "HOLD") return "bot-hold";
-  return "bot-sell";
-}
-
-function renderTabla() {
-  const tabla = document.getElementById("tabla");
-  const soloCompra = document.getElementById("soloCompra")?.checked || false;
-  const soloHot = document.getElementById("soloHot")?.checked || false;
-  const ocultarAlto = document.getElementById("ocultarAlto")?.checked || false;
-  const busqueda = document.getElementById("buscarAccion")?.value.trim().toUpperCase() || "";
-
-  let datos = [...datosGlobales];
-
-  if (sectorActivo !== "TODOS") {
-    datos = datos.filter(r => String(r.Sector || "").includes(sectorActivo));
-  }
-
-  if (busqueda !== "") {
-    datos = datos.filter(r => String(r.Accion || "").toUpperCase().includes(busqueda));
-  }
-
-  if (soloCompra) {
-    datos = datos.filter(r => ["BUY STRONG", "BUY"].includes(String(r["Senal Bot"] || "")));
-  }
-
-  if (soloHot) {
-    datos = datos.filter(r => String(r["Hot Score"] || "").includes("🔥"));
-  }
-
-  if (ocultarAlto) {
-    datos = datos.filter(r => String(r.Riesgo || "") !== "ALTO");
-  }
-
-  datos.sort(ordenRanking);
-  tabla.innerHTML = "";
-
-  if (datos.length === 0) {
-    tabla.innerHTML = `<tr><td colspan="19">No hay resultados con esos filtros.</td></tr>`;
-    return;
-  }
-
-  datos.forEach(r => {
-    const riesgo = String(r.Riesgo || "").toLowerCase();
-    const senal = String(r.Senal || "");
-    const bot = String(r["Senal Bot"] || "");
-    const prob = Number(r["Probabilidad tecnica"] || 0);
-    const momentum = Number(r.Momentum || 0);
-    const fuerzaRel = Number(r["Fuerza relativa"] || 0);
-
-    let claseSenal = "no";
-    if (senal === "COMPRA FUERTE") claseSenal = "fuerte";
-    else if (senal.includes("POSIBLE")) claseSenal = "compra";
-    else if (senal.includes("VIGILAR")) claseSenal = "vigilar";
-
-    const claseMom = momentum >= 0 ? "mom-pos" : "mom-neg";
-    const claseRel = fuerzaRel >= 0 ? "mom-pos" : "mom-neg";
-    const detalle = [r.Razones, r.Alertas].filter(Boolean).join(" | ");
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${safe(r.Accion)}</strong></td>
-      <td>${safe(r.Sector || "Otro")}</td>
-      <td>${safe(r["Precio actual"])}</td>
-      <td><span class="prob ${claseProbabilidad(prob)}">${numero(prob, 1)}%</span></td>
-      <td class="${claseMom}">${numero(momentum)}%</td>
-      <td class="${claseRel}">${numero(fuerzaRel)}%</td>
-      <td>${safe(r["Hot Score"] || "")}</td>
-      <td><span class="conf ${String(r.Confirmacion || "MEDIA").toLowerCase()}">${safe(r.Confirmacion || "MEDIA")}</span></td>
-      <td>${safe(r["ATR %"] || 0)}%</td>
-      <td>${safe(r["Entrada min"])} - ${safe(r["Entrada max"])}</td>
-      <td>${safe(r["Stop loss"])}</td>
-      <td>${safe(r.Objetivo)}</td>
-      <td>${safe(r["R/R"] || "")}</td>
-      <td>${safe(r.RSI)}</td>
-      <td>${safe(r.Mercado || "NEUTRO")}</td>
-      <td><span class="badge ${riesgo}">${safe(r.Riesgo)}</span></td>
-      <td class="${claseSenal}">${safe(r.Senal)}</td>
-      <td><span class="bot-badge ${claseBot(bot)}">${safe(bot)}</span></td>
-      <td class="detalle" title="${safe(detalle)}">${safe(detalle || "-")}</td>
-    `;
-
-    tabla.appendChild(tr);
-  });
-}
-
-function renderHistorial() {
-  const tabla = document.getElementById("tablaHistorial");
-  if (!tabla) return;
-
-  tabla.innerHTML = "";
-  const ops = [...historialOperaciones];
-
-  if (ops.length === 0) {
-    tabla.innerHTML = `<tr><td colspan="13">Todavía no hay historial. Ejecuta el análisis una vez y la app empezará a guardar señales.</td></tr>`;
-    return;
-  }
-
-  ops.slice(0, 120).forEach(op => {
-    const estado = String(op.estado || "");
-    const ganancia = Number(op.ganancia_pct ?? op.ganancia_pct_final ?? 0);
-    const claseGanancia = ganancia >= 0 ? "hist-pos" : "hist-neg";
-    const claseEstado = estado === "ABIERTA" ? "hist-open" : "hist-closed";
-    const botActual = op.senal_bot_actual || op.senal_bot_entrada || "";
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><span class="hist-status ${claseEstado}">${safe(estado)}</span></td>
-      <td><strong>${safe(op.accion)}</strong></td>
-      <td>${safe(op.precio_entrada)}</td>
-      <td>${safe(op.precio_actual ?? op.precio_cierre ?? "")}</td>
-      <td class="${claseGanancia}">${numero(ganancia)}%</td>
-      <td>${safe(op.stop)}</td>
-      <td>${safe(op.objetivo)}</td>
-      <td>${safe(op.rr || "")}</td>
-      <td>${safe(op.fecha_entrada)}</td>
-      <td>${safe(op.dias_abierta ?? 0)}</td>
-      <td>${safe(op.senal_entrada)}</td>
-      <td><span class="bot-badge ${claseBot(botActual)}">${safe(botActual)}</span></td>
-      <td>${safe(op.resultado || "EN SEGUIMIENTO")}</td>
-    `;
-    tabla.appendChild(tr);
-  });
-}
-
-function scrollHistorial() {
-  const card = document.getElementById("historialCard");
-  if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function ejecutarAnalisis() {
-  const usuario = "davascoj";
   const repoDetectado = location.pathname.split("/").filter(Boolean)[0];
-  const repo = repoDetectado || "Analizador-acciones";
-  const workflow = "analizar.yml";
-  const url = `https://github.com/${usuario}/${repo}/actions/workflows/${workflow}`;
-  window.open(url, "_blank");
-  alert("Ya no necesitas token desde la página. Se abrió GitHub Actions. Ahí puedes usar Run workflow si quieres forzar una actualización manual.");
+  const repo = repoDetectado || "BOT-ARQv1";
+
+  return { usuario, repo };
 }
 
-cargarDatos();
+function normalizarClase(texto) {
+  return String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\+/g, "plus")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
-setInterval(() => {
-  if (!document.hidden && autoRefreshActivo) {
-    cargarDatos();
-  }
-}, AUTO_REFRESH_MS);
+function escaparHTML(valor) {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
+function formatoNumero(valor, decimales = 2) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return "-";
+  return n.toFixed(decimales);
+}
 
-// ================================
-// AVISO VISUAL DE ESTADO DEL SISTEMA
-// Mercado regular NYSE/Nasdaq: lunes a viernes, 9:30 a.m. a 4:00 p.m. New York
-// Nota: no valida feriados especiales; el workflow de Python sí controla eso mejor.
-// ================================
+function obtenerHoraZona(timeZone, locale = "es-CO") {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  }).format(new Date()).replace(",", " ·");
+}
+
 function obtenerHoraNewYorkARQ() {
   const partes = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -376,7 +67,6 @@ function obtenerHoraNewYorkARQ() {
   }).formatToParts(new Date());
 
   const datos = {};
-
   partes.forEach((parte) => {
     datos[parte.type] = parte.value;
   });
@@ -431,5 +121,462 @@ function actualizarAvisoSistemaARQ() {
   }
 }
 
-actualizarAvisoSistemaARQ();
-setInterval(actualizarAvisoSistemaARQ, 30000);
+function actualizarRelojes() {
+  const horaColombia = document.getElementById("horaColombia");
+  const horaNewYork = document.getElementById("horaNewYork");
+
+  if (horaColombia) horaColombia.textContent = obtenerHoraZona("America/Bogota", "es-CO");
+  if (horaNewYork) horaNewYork.textContent = obtenerHoraZona("America/New_York", "es-CO");
+
+  actualizarAvisoSistemaARQ();
+}
+
+async function cargarDatos() {
+  const tabla = document.getElementById("tabla");
+  const fecha = document.getElementById("fecha");
+  const resumen = document.getElementById("resumen");
+  const contador = document.getElementById("contadorResultados");
+
+  if (tabla) tabla.innerHTML = `<tr><td colspan="12" class="loading-cell">Cargando datos...</td></tr>`;
+  if (resumen) resumen.textContent = "Cargando resumen...";
+  if (contador) contador.textContent = "Cargando resultados...";
+
+  try {
+    const resp = await fetch("datos_acciones.json?nocache=" + Date.now());
+    if (!resp.ok) throw new Error("No existe datos_acciones.json todavía");
+
+    const data = await resp.json();
+    const fechaTexto = data.actualizado || "sin fecha";
+
+    if (fecha) fecha.textContent = fechaTexto;
+
+    contextoMercado = data.contexto_mercado || null;
+    datosGlobales = data.resultados || [];
+    datosOriginales = data.resultados || [];
+
+    pintarMercado();
+    pintarContextoDetalle();
+    pintarResumen();
+    renderTabla();
+  } catch (e) {
+    if (fecha) fecha.textContent = "Sin datos";
+    if (resumen) resumen.textContent = "No hay resumen disponible.";
+    if (contador) contador.textContent = "No hay resultados cargados";
+    if (tabla) {
+      tabla.innerHTML = `<tr><td colspan="12" class="loading-cell error-cell">No se pudieron cargar datos. Revisa datos_acciones.json o GitHub Actions.</td></tr>`;
+    }
+  }
+}
+
+function pintarMercado() {
+  const marketBox = document.getElementById("marketBox");
+  if (!marketBox) return;
+
+  if (!contextoMercado) {
+    marketBox.textContent = "Sin datos";
+    marketBox.className = "status-value market-status";
+    return;
+  }
+
+  const estado = contextoMercado.estado || "NEUTRO";
+  const spy = contextoMercado.spy20 ?? 0;
+  const qqq = contextoMercado.qqq20 ?? 0;
+
+  marketBox.textContent = `${estado} · SPY ${spy}% · QQQ ${qqq}%`;
+  marketBox.className = "status-value market-status " + normalizarClase(estado);
+}
+
+function pintarContextoDetalle() {
+  const box = document.getElementById("contextoDetalle");
+  if (!box) return;
+
+  if (!contextoMercado) {
+    box.innerHTML = `<div class="context-item">Sin contexto disponible</div>`;
+    return;
+  }
+
+  const sectores = contextoMercado.sectores || {};
+  const cards = [];
+
+  cards.push(`
+    <div class="context-item mercado-general">
+      <small>Mercado general</small>
+      <strong>${escaparHTML(contextoMercado.estado || "NEUTRO")}</strong>
+      <span>SPY ${contextoMercado.spy20 ?? 0}% · QQQ ${contextoMercado.qqq20 ?? 0}%</span>
+    </div>
+  `);
+
+  Object.entries(sectores).forEach(([nombre, ctx]) => {
+    const estado = ctx?.estado || "SIN DATOS";
+    const detalle = ctx?.detalle || "";
+    cards.push(`
+      <div class="context-item ${normalizarClase(estado)}">
+        <small>${escaparHTML(nombre)}</small>
+        <strong>${escaparHTML(estado)}</strong>
+        <span>${escaparHTML(detalle || "Sin detalle")}</span>
+      </div>
+    `);
+  });
+
+  box.innerHTML = cards.join("");
+}
+
+function pintarResumen() {
+  const resumen = document.getElementById("resumen");
+  if (!resumen) return;
+
+  const total = datosOriginales.length;
+  const fuertes = datosOriginales.filter(r => r.Senal === "COMPRA FUERTE").length;
+  const posibles = datosOriginales.filter(r => r.Senal === "POSIBLE COMPRA").length;
+  const vigilar = datosOriginales.filter(r => r.Senal === "VIGILAR").length;
+  const noComprar = datosOriginales.filter(r => r.Senal === "NO COMPRAR").length;
+  const alto = datosOriginales.filter(r => r.Riesgo === "ALTO").length;
+  const topCompras = fuertes + posibles;
+  const mercado = contextoMercado?.estado || "NEUTRO";
+  const mejor = [...datosOriginales].sort(ordenRanking)[0];
+  const mejorAccion = mejor?.Accion || "-";
+  const mejorSenal = mejor?.Senal || "Sin señal";
+
+  resumen.innerHTML = `
+    <div class="summary-item primary">
+      <small>Mejor oportunidad</small>
+      <strong>${escaparHTML(mejorAccion)}</strong>
+      <span>${escaparHTML(mejorSenal)}</span>
+    </div>
+    <div class="summary-item">
+      <small>Mercado</small>
+      <strong>${escaparHTML(mercado)}</strong>
+      <span>SPY / QQQ + sectores</span>
+    </div>
+    <div class="summary-item buy">
+      <small>Top compras</small>
+      <strong>${topCompras}</strong>
+      <span>${fuertes} fuertes · ${posibles} posibles</span>
+    </div>
+    <div class="summary-item">
+      <small>Total analizadas</small>
+      <strong>${total}</strong>
+      <span>acciones / ETFs</span>
+    </div>
+    <div class="summary-item warning">
+      <small>Vigilar</small>
+      <strong>${vigilar}</strong>
+      <span>sin entrada clara</span>
+    </div>
+    <div class="summary-item danger">
+      <small>Riesgo alto</small>
+      <strong>${alto}</strong>
+      <span>${noComprar} no comprar</span>
+    </div>
+  `;
+}
+
+function actualizarContador(cantidad) {
+  const contador = document.getElementById("contadorResultados");
+  if (!contador) return;
+
+  const total = datosOriginales.length;
+  contador.textContent = `Mostrando ${cantidad} de ${total} resultados`;
+}
+
+function filtrarSector(sector) {
+  datosGlobales = [...datosOriginales];
+  sectorActivo = sector;
+
+  const selector = document.getElementById("sectorSelect");
+  if (selector && selector.value !== sector) selector.value = sector;
+
+  renderTabla();
+}
+
+function limpiarBusqueda() {
+  const buscar = document.getElementById("buscarAccion");
+  if (buscar) buscar.value = "";
+
+  datosGlobales = [...datosOriginales];
+  sectorActivo = "TODOS";
+  filasAbiertas.clear();
+
+  const soloCompra = document.getElementById("soloCompra");
+  const soloHot = document.getElementById("soloHot");
+  const ocultarAlto = document.getElementById("ocultarAlto");
+  const sectorSelect = document.getElementById("sectorSelect");
+
+  if (sectorSelect) sectorSelect.value = "TODOS";
+  if (soloCompra) soloCompra.checked = false;
+  if (soloHot) soloHot.checked = false;
+  if (ocultarAlto) ocultarAlto.checked = false;
+
+  renderTabla();
+}
+
+function claseProbabilidad(prob) {
+  if (prob >= 84) return "prob-verde";
+  if (prob >= 70) return "prob-amarillo";
+  return "prob-rojo";
+}
+
+function prioridadSenal(senal) {
+  if (senal === "COMPRA FUERTE") return 3;
+  if (senal === "POSIBLE COMPRA") return 2;
+  if (senal === "VIGILAR") return 1;
+  return 0;
+}
+
+function prioridadRiesgo(riesgo) {
+  if (riesgo === "BAJO") return 2;
+  if (riesgo === "MEDIO") return 1;
+  return 0;
+}
+
+function prioridadContexto(ctx) {
+  if (ctx === "ACOMPAÑA") return 3;
+  if (ctx === "NEUTRO +") return 2;
+  if (ctx === "NEUTRO") return 1;
+  return 0;
+}
+
+function ordenRanking(a, b) {
+  const aHot = String(a["Hot Score"] || "").length;
+  const bHot = String(b["Hot Score"] || "").length;
+
+  return (
+    prioridadSenal(b.Senal) - prioridadSenal(a.Senal) ||
+    prioridadRiesgo(b.Riesgo) - prioridadRiesgo(a.Riesgo) ||
+    prioridadContexto(b["Contexto sector"]) - prioridadContexto(a["Contexto sector"]) ||
+    bHot - aHot ||
+    Number(b["Probabilidad tecnica"] || 0) - Number(a["Probabilidad tecnica"] || 0) ||
+    Number(b["Fuerza relativa"] || 0) - Number(a["Fuerza relativa"] || 0) ||
+    Number(a["ATR %"] || 99) - Number(b["ATR %"] || 99)
+  );
+}
+
+function mostrarTop4() {
+  let datos = [...datosOriginales];
+
+  datos = datos.filter(r =>
+    ["COMPRA FUERTE", "POSIBLE COMPRA"].includes(String(r.Senal || "")) &&
+    ["BAJO", "MEDIO"].includes(r.Riesgo)
+  );
+
+  datos.sort(ordenRanking);
+  datosGlobales = datos.slice(0, 4);
+  sectorActivo = "TODOS";
+  filasAbiertas.clear();
+
+  const buscar = document.getElementById("buscarAccion");
+  const soloCompra = document.getElementById("soloCompra");
+  const soloHot = document.getElementById("soloHot");
+  const ocultarAlto = document.getElementById("ocultarAlto");
+  const sectorSelect = document.getElementById("sectorSelect");
+
+  if (buscar) buscar.value = "";
+  if (sectorSelect) sectorSelect.value = "TODOS";
+  if (soloCompra) soloCompra.checked = false;
+  if (soloHot) soloHot.checked = false;
+  if (ocultarAlto) ocultarAlto.checked = true;
+
+  renderTabla();
+}
+
+function separarListaTexto(texto) {
+  const valor = String(texto || "").trim();
+  if (!valor) return [];
+  return valor
+    .split(/;|\n|\|/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function listaHTML(titulo, items, tipo) {
+  if (!items.length) {
+    return `
+      <div class="explain-block ${tipo}">
+        <h4>${titulo}</h4>
+        <p class="empty-note">Sin datos destacados.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="explain-block ${tipo}">
+      <h4>${titulo}</h4>
+      <ul>
+        ${items.map(item => `<li>${escaparHTML(item)}</li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function detalleTecnicoHTML(r) {
+  const ma20 = r["MA20"] ?? r["Media 20"] ?? r["Distancia MA20 %"];
+  const ma20Label = r["MA20"] || r["Media 20"] ? formatoNumero(ma20, 2) : `${formatoNumero(ma20, 2)}% dist.`;
+
+  const detalles = [
+    ["RSI", formatoNumero(r.RSI, 2)],
+    ["ATR %", `${formatoNumero(r["ATR %"], 2)}%`],
+    ["MA20", ma20Label],
+    ["Fuerza relativa", `${formatoNumero(r["Fuerza relativa"], 2)}%`],
+    ["Drivers sector", r["Drivers sector"] || "SPY/QQQ"],
+    ["Confirmación", r.Confirmacion || "MEDIA"],
+    ["R/R", r["R/R"] || "-"],
+    ["Hot", r["Hot Score"] || "-"],
+  ];
+
+  return `
+    <div class="technical-grid">
+      ${detalles.map(([label, value]) => `
+        <div class="tech-item">
+          <small>${escaparHTML(label)}</small>
+          <strong>${escaparHTML(value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function toggleDetalle(ticker) {
+  if (filasAbiertas.has(ticker)) {
+    filasAbiertas.delete(ticker);
+  } else {
+    filasAbiertas.add(ticker);
+  }
+  renderTabla();
+}
+
+function renderTabla() {
+  const tabla = document.getElementById("tabla");
+  const soloCompra = document.getElementById("soloCompra")?.checked || false;
+  const soloHot = document.getElementById("soloHot")?.checked || false;
+  const ocultarAlto = document.getElementById("ocultarAlto")?.checked || false;
+  const busqueda = document.getElementById("buscarAccion")?.value.trim().toUpperCase() || "";
+
+  let datos = [...datosGlobales];
+
+  if (sectorActivo !== "TODOS") {
+    datos = datos.filter(r => String(r.Sector || "").includes(sectorActivo));
+  }
+
+  if (busqueda !== "") {
+    datos = datos.filter(r => String(r.Accion || "").toUpperCase().includes(busqueda));
+  }
+
+  if (soloCompra) {
+    datos = datos.filter(r => ["COMPRA FUERTE", "POSIBLE COMPRA"].includes(String(r.Senal || "")));
+  }
+
+  if (soloHot) {
+    datos = datos.filter(r => String(r["Hot Score"] || "").includes("🔥"));
+  }
+
+  if (ocultarAlto) {
+    datos = datos.filter(r => String(r.Riesgo || "") !== "ALTO");
+  }
+
+  datos.sort(ordenRanking);
+  actualizarContador(datos.length);
+
+  if (!tabla) return;
+  tabla.innerHTML = "";
+
+  if (datos.length === 0) {
+    tabla.innerHTML = `<tr><td colspan="12" class="loading-cell">No hay resultados con esos filtros.</td></tr>`;
+    return;
+  }
+
+  datos.forEach(r => {
+    const ticker = String(r.Accion || "");
+    const riesgo = String(r.Riesgo || "").toLowerCase();
+    const senal = String(r.Senal || "");
+    const prob = Number(r["Probabilidad tecnica"] || 0);
+    const momentum = Number(r.Momentum || 0);
+    const volumenRel = Number(r["Volumen relativo"] || 0);
+    const contextoSector = r["Contexto sector"] || "GENERAL";
+    const contextoClase = normalizarClase(contextoSector);
+    const abierto = filasAbiertas.has(ticker);
+
+    let claseSenal = "no";
+    if (senal === "COMPRA FUERTE") claseSenal = "fuerte";
+    else if (senal.includes("POSIBLE")) claseSenal = "compra";
+    else if (senal.includes("VIGILAR")) claseSenal = "vigilar";
+
+    const claseMom = momentum >= 0 ? "mom-pos" : "mom-neg";
+    const claseVol = volumenRel >= 1 ? "mom-pos" : "mom-neutral";
+    const razones = separarListaTexto(r.Razones);
+    const alertas = separarListaTexto(r.Alertas);
+
+    const tr = document.createElement("tr");
+    tr.className = `main-row row-${claseSenal} riesgo-${riesgo}`;
+    tr.innerHTML = `
+      <td class="ticker-cell">
+        <strong>${escaparHTML(ticker)}</strong>
+        <span>${escaparHTML(r.Sector || "Otro")}</span>
+      </td>
+      <td>$${formatoNumero(r["Precio actual"], 2)}</td>
+      <td><span class="prob ${claseProbabilidad(prob)}">${formatoNumero(prob, 1)}</span></td>
+      <td><span class="senal-badge ${claseSenal}">${escaparHTML(senal)}</span></td>
+      <td><span class="badge ${riesgo}">${escaparHTML(r.Riesgo || "-")}</span></td>
+      <td><span class="contexto-pill ${contextoClase}" title="${escaparHTML(r["Drivers sector"] || "")}">${escaparHTML(contextoSector)}</span></td>
+      <td class="${claseMom}">${formatoNumero(momentum, 2)}%</td>
+      <td class="${claseVol}">${formatoNumero(volumenRel, 2)}x</td>
+      <td>${formatoNumero(r["Entrada min"], 2)} - ${formatoNumero(r["Entrada max"], 2)}</td>
+      <td class="stop-cell">${formatoNumero(r["Stop loss"], 2)}</td>
+      <td class="target-cell">${formatoNumero(r.Objetivo, 2)}</td>
+      <td>
+        <button class="explain-btn ${abierto ? "open" : ""}" onclick="toggleDetalle('${escaparHTML(ticker)}')">
+          ${abierto ? "Ocultar" : "Ver explicación"}
+        </button>
+      </td>
+    `;
+
+    tabla.appendChild(tr);
+
+    if (abierto) {
+      const detalle = document.createElement("tr");
+      detalle.className = "detail-row";
+      detalle.innerHTML = `
+        <td colspan="12">
+          <div class="explain-panel">
+            <div class="explain-header">
+              <div>
+                <small>Explicación de la señal</small>
+                <h3>¿Por qué ${escaparHTML(ticker)} marca ${escaparHTML(senal || "esta señal")}?</h3>
+              </div>
+              <span class="score-large ${claseProbabilidad(prob)}">Score ARQ ${formatoNumero(prob, 1)}</span>
+            </div>
+
+            <div class="explain-grid">
+              ${listaHTML("Razones", razones, "reasons")}
+              ${listaHTML("Alertas", alertas, "alerts")}
+            </div>
+
+            <div class="secondary-title">Datos técnicos secundarios</div>
+            ${detalleTecnicoHTML(r)}
+          </div>
+        </td>
+      `;
+      tabla.appendChild(detalle);
+    }
+  });
+}
+
+function ejecutarAnalisis() {
+  const { usuario, repo } = obtenerRepoGitHub();
+  const workflow = "analizar.yml";
+  const url = `https://github.com/${usuario}/${repo}/actions/workflows/${workflow}`;
+  window.open(url, "_blank");
+  alert("La actualización automática ya está activa. Si quieres forzar una actualización manual, abre GitHub Actions y presiona Run workflow.");
+}
+
+cargarDatos();
+actualizarRelojes();
+
+setInterval(() => {
+  actualizarRelojes();
+}, 1000);
+
+setInterval(() => {
+  if (!document.hidden && autoRefreshActivo) {
+    cargarDatos();
+  }
+}, AUTO_REFRESH_MS);
