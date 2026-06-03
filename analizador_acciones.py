@@ -1,5 +1,8 @@
+import contextlib
+import io
 import json
 import time
+import warnings
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -7,7 +10,6 @@ import pandas as pd
 import yfinance as yf
 
 ACCIONES_INFO = {
-    # Tecnología, IA y software
     "NVDA": "IA / Chips", "AMD": "IA / Chips", "MSFT": "Tecnología",
     "AVGO": "IA / Chips", "AAPL": "Tecnología", "META": "Tecnología",
     "AMZN": "Tecnología", "GOOGL": "Tecnología", "TSLA": "Autos / Tech",
@@ -17,52 +19,81 @@ ACCIONES_INFO = {
     "ADBE": "Tecnología", "SHOP": "Tecnología", "RDDT": "Tecnología",
     "IBM": "Tecnología", "ACN": "Tecnología", "INTU": "Tecnología",
     "TEAM": "Tecnología", "HUBS": "Tecnología", "TTD": "Tecnología",
-    "DELL": "Tecnología",
-
-    # IA, datos, ciberseguridad y crecimiento
-    "PLTR": "IA / Software", "SMCI": "Servidores IA", "SOUN": "IA",
-    "AI": "IA", "UPST": "Fintech IA", "CRWD": "Ciberseguridad",
-    "PANW": "Ciberseguridad", "ZS": "Ciberseguridad", "FTNT": "Ciberseguridad",
-    "OKTA": "Ciberseguridad", "CHKP": "Ciberseguridad", "MDB": "Datos / Software",
-    "ANET": "Redes / IA",
-
-    # Semiconductores y equipos de chips
-    "MU": "Memoria / Chips", "ARM": "Chips", "QCOM": "Chips", "INTC": "Chips",
+    "DELL": "Tecnología", "PLTR": "IA / Software", "SMCI": "Servidores IA",
+    "SOUN": "IA", "AI": "IA", "UPST": "Fintech IA",
+    "CRWD": "Ciberseguridad", "PANW": "Ciberseguridad", "ZS": "Ciberseguridad",
+    "FTNT": "Ciberseguridad", "OKTA": "Ciberseguridad", "CHKP": "Ciberseguridad",
+    "MDB": "Datos / Software", "ANET": "Redes / IA", "MU": "Memoria / Chips",
+    "ARM": "Chips", "QCOM": "Chips", "INTC": "Chips",
     "TSM": "Chips", "ASML": "Chips", "AMAT": "Equipos chips",
     "LRCX": "Equipos chips", "KLAC": "Equipos chips", "MRVL": "Chips",
-    "ON": "Chips", "NXPI": "Chips", "MPWR": "Chips", "TXN": "Chips",
-    "ADI": "Chips", "MCHP": "Chips",
-
-    # Finanzas, pagos, trading y cripto relacionadas
+    "ON": "Chips", "NXPI": "Chips", "MPWR": "Chips",
+    "TXN": "Chips", "ADI": "Chips", "MCHP": "Chips",
     "SOFI": "Fintech", "COIN": "Cripto / Trading", "HOOD": "Trading",
-    "PYPL": "Pagos", "XYZ": "Pagos", "V": "Pagos", "MA": "Pagos",
-    "JPM": "Finanzas", "GS": "Finanzas", "BAC": "Finanzas", "MS": "Finanzas",
-    "C": "Finanzas", "WFC": "Finanzas", "BLK": "Finanzas", "SCHW": "Finanzas",
+    "PYPL": "Pagos", "XYZ": "Pagos", "V": "Pagos",
+    "MA": "Pagos", "JPM": "Finanzas", "GS": "Finanzas",
+    "BAC": "Finanzas", "MS": "Finanzas", "C": "Finanzas",
+    "WFC": "Finanzas", "BLK": "Finanzas", "SCHW": "Finanzas",
     "IBKR": "Trading", "MSTR": "Cripto / Trading", "MARA": "Cripto / Trading",
-    "RIOT": "Cripto / Trading",
-
-    # Energía e industrial
-    "XOM": "Energía", "CVX": "Energía", "OXY": "Energía", "SLB": "Energía",
-    "COP": "Energía", "LNG": "Energía", "EOG": "Energía", "FANG": "Energía",
-    "DVN": "Energía", "HAL": "Energía", "GE": "Industrial", "CAT": "Industrial",
-    "BA": "Industrial", "DE": "Industrial",
-
-    # Salud y consumo defensivo
-    "LLY": "Salud", "NVO": "Salud", "UNH": "Salud", "ABBV": "Salud",
-    "JNJ": "Salud", "PFE": "Salud", "MRK": "Salud", "TMO": "Salud",
-    "ABT": "Salud", "COST": "Consumo", "WMT": "Consumo", "MCD": "Consumo",
+    "RIOT": "Cripto / Trading", "XOM": "Energía", "CVX": "Energía",
+    "OXY": "Energía", "SLB": "Energía", "COP": "Energía",
+    "LNG": "Energía", "EOG": "Energía", "FANG": "Energía",
+    "DVN": "Energía", "HAL": "Energía", "GE": "Industrial",
+    "CAT": "Industrial", "BA": "Industrial", "DE": "Industrial",
+    "LLY": "Salud", "NVO": "Salud", "UNH": "Salud",
+    "ABBV": "Salud", "JNJ": "Salud", "PFE": "Salud",
+    "MRK": "Salud", "TMO": "Salud", "ABT": "Salud",
+    "COST": "Consumo", "WMT": "Consumo", "MCD": "Consumo",
     "HD": "Consumo", "LOW": "Consumo", "SBUX": "Consumo",
-
-    # ETFs y mercado general
     "SPY": "ETF Mercado", "QQQ": "ETF Nasdaq", "VOO": "ETF Mercado",
     "SOXX": "ETF Chips", "SMH": "ETF Chips", "XLK": "ETF Tecnología",
     "VGT": "ETF Tecnología", "IWM": "ETF Russell", "DIA": "ETF Dow",
     "XLE": "ETF Energía", "XLF": "ETF Finanzas", "XLV": "ETF Salud",
-    "ARKK": "ETF Innovación",
-
-    # Temáticas de alta volatilidad / innovación
-    "RKLB": "Espacial", "IONQ": "Computación cuántica", "QBTS": "Computación cuántica",
-    "RGTI": "Computación cuántica", "JOBY": "Movilidad aérea", "ACHR": "Movilidad aérea"
+    "ARKK": "ETF Innovación", "RKLB": "Espacial", "IONQ": "Computación cuántica",
+    "QBTS": "Computación cuántica", "RGTI": "Computación cuántica", "JOBY": "Movilidad aérea",
+    "ACHR": "Movilidad aérea", "CSCO": "Tecnología", "ADSK": "Tecnología",
+    "CDNS": "Tecnología", "SNPS": "Tecnología", "WDAY": "Tecnología",
+    "DOCU": "Tecnología", "U": "Tecnología", "ESTC": "Datos / Software",
+    "GTLB": "Software", "TWLO": "Software", "ZM": "Software",
+    "PINS": "Tecnología", "SPOT": "Tecnología", "DUOL": "Tecnología",
+    "EA": "Gaming", "TTWO": "Gaming", "RBLX": "Gaming",
+    "BIDU": "Tecnología China", "BABA": "Tecnología China", "JD": "Tecnología China",
+    "PDD": "Tecnología China", "SE": "Tecnología / E-commerce", "PATH": "IA / Automatización",
+    "BBAI": "IA", "SERV": "Robótica", "SYM": "Robótica",
+    "TER": "Robótica / Chips", "ROK": "Automatización", "GFS": "Chips",
+    "WDC": "Memoria / Data", "STX": "Memoria / Data", "HPE": "Servidores IA",
+    "VRT": "Data Center", "ETN": "Data Center / Energía", "PWR": "Data Center / Energía",
+    "APH": "Hardware / Conectividad", "GLW": "Hardware / Fibra", "SWKS": "Chips",
+    "QRVO": "Chips", "LSCC": "Chips", "ENTG": "Equipos chips",
+    "COHR": "Óptica / Chips", "RIVN": "Autos / Tech", "LCID": "Autos / Tech",
+    "NIO": "Autos / Tech", "LI": "Autos / Tech", "XPEV": "Autos / Tech",
+    "F": "Autos", "GM": "Autos", "TM": "Autos",
+    "ALB": "Litio / Baterías", "ENPH": "Energía solar", "FSLR": "Energía solar",
+    "SEDG": "Energía solar", "PLUG": "Energía limpia", "NEE": "Energía",
+    "DUK": "Energía", "SO": "Energía", "CEG": "Energía nuclear",
+    "CCJ": "Uranio", "AXP": "Finanzas", "NU": "Fintech",
+    "AFRM": "Fintech", "TOST": "Fintech", "BILL": "Fintech",
+    "GPN": "Pagos", "FIS": "Pagos", "ADP": "Finanzas",
+    "BX": "Finanzas", "KKR": "Finanzas", "APO": "Finanzas",
+    "USB": "Finanzas", "PNC": "Finanzas", "DFS": "Finanzas",
+    "COF": "Finanzas", "REGN": "Salud", "VRTX": "Salud",
+    "GILD": "Salud", "AMGN": "Salud", "BMY": "Salud",
+    "ELV": "Salud", "HIMS": "Salud", "MDT": "Salud",
+    "SYK": "Salud", "BSX": "Salud", "DHR": "Salud",
+    "DXCM": "Salud", "ILMN": "Salud", "MRNA": "Biotecnología",
+    "BNTX": "Biotecnología", "DIS": "Consumo", "NKE": "Consumo",
+    "TGT": "Consumo", "BKNG": "Viajes", "ABNB": "Viajes",
+    "RCL": "Viajes", "CCL": "Viajes", "DAL": "Viajes",
+    "UAL": "Viajes", "AAL": "Viajes", "MAR": "Viajes",
+    "HLT": "Viajes", "CMG": "Consumo", "YUM": "Consumo",
+    "KO": "Consumo defensivo", "PEP": "Consumo defensivo", "PG": "Consumo defensivo",
+    "LMT": "Defensa", "RTX": "Defensa", "NOC": "Defensa",
+    "GD": "Defensa", "LDOS": "Defensa", "AXON": "Defensa / Seguridad",
+    "UNP": "Transporte", "CSX": "Transporte", "UPS": "Transporte",
+    "FCX": "Minería", "NEM": "Oro", "GOLD": "Oro",
+    "O": "REIT", "PLD": "REIT", "AMT": "REIT",
+    "VTI": "ETF Mercado", "SCHD": "ETF Dividendos", "TQQQ": "ETF Nasdaq",
+    "IBIT": "ETF Bitcoin"
 }
 
 ACCIONES = list(ACCIONES_INFO.keys())
@@ -95,15 +126,41 @@ def limpiar_df(df):
 
 
 def descargar(ticker, periodo="1y"):
-    df = yf.download(
-        ticker,
-        period=periodo,
-        interval="1d",
-        auto_adjust=True,
-        progress=False,
-        threads=False,
-    )
-    return limpiar_df(df)
+    """
+    Descarga datos desde Yahoo Finance.
+    Si el ticker no existe, fue cambiado o Yahoo no devuelve datos, retorna DataFrame vacío
+    para que el bot continúe con las demás acciones.
+    """
+    try:
+        buffer = io.StringIO()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+                df = yf.download(
+                    ticker,
+                    period=periodo,
+                    interval="1d",
+                    auto_adjust=True,
+                    progress=False,
+                    threads=False,
+                )
+
+        df = limpiar_df(df)
+
+        if df is None or df.empty:
+            print(f"SIN DATOS EN YAHOO: {ticker}")
+            return pd.DataFrame()
+
+        columnas_necesarias = {"Open", "High", "Low", "Close", "Volume"}
+        if not columnas_necesarias.issubset(set(df.columns)):
+            print(f"DATOS INCOMPLETOS EN YAHOO: {ticker}")
+            return pd.DataFrame()
+
+        return df
+
+    except Exception as e:
+        print(f"ERROR descargando {ticker}: {e}")
+        return pd.DataFrame()
 
 
 def rsi_real(close, periodo=14):
@@ -278,23 +335,26 @@ def tipo_contexto_por_accion(ticker, sector):
     """Define qué contexto externo debe confirmar cada acción."""
     sector_txt = str(sector or "")
 
-    # Cripto-relacionadas: dependen mucho de BTC/ETH.
-    if ticker in ["COIN", "MSTR", "MARA", "RIOT"] or "Cripto" in sector_txt:
+    if ticker in ["COIN", "MSTR", "MARA", "RIOT", "IBIT"] or "Cripto" in sector_txt or "Bitcoin" in sector_txt:
         return "cripto"
 
-    # Energía: depende de XLE y petróleo.
-    if ticker in ["XOM", "CVX", "SLB", "OXY", "COP", "LNG", "EOG", "FANG", "DVN", "HAL"] or "Energía" in sector_txt:
+    if (
+        "Energía" in sector_txt or "Petróleo" in sector_txt or "Uranio" in sector_txt
+        or ticker in ["XOM", "CVX", "SLB", "OXY", "COP", "LNG", "EOG", "FANG", "DVN", "HAL", "NEE", "DUK", "SO", "CEG", "CCJ"]
+    ):
         return "energia"
 
-    # Chips/semiconductores: SOXX + QQQ.
-    if ticker in ["NVDA", "AMD", "MU", "AVGO", "KLAC", "AMAT"] or "Chips" in sector_txt or "Memoria" in sector_txt:
+    if (
+        "Chips" in sector_txt or "Memoria" in sector_txt or "Semiconductor" in sector_txt
+        or ticker in ["NVDA", "AMD", "MU", "AVGO", "KLAC", "AMAT", "TSM", "ASML", "QCOM", "INTC", "ARM", "GFS", "SWKS", "QRVO", "LSCC"]
+    ):
         return "chips"
 
-    # Tech/IA/innovación: QQQ + ARKK + SPY.
     if (
         "Tecnología" in sector_txt or "IA" in sector_txt or "Software" in sector_txt
         or "Ciberseguridad" in sector_txt or "Computación" in sector_txt
-        or ticker in ["PLTR", "TSLA", "SOUN", "AI", "ARKK"]
+        or "Robótica" in sector_txt or "Data Center" in sector_txt
+        or ticker in ["PLTR", "TSLA", "SOUN", "AI", "ARKK", "PATH", "BBAI", "SERV", "SYM"]
     ):
         return "tech_ia"
 
@@ -644,7 +704,7 @@ def main():
             print("OK")
         else:
             print("SIN DATOS")
-        time.sleep(0.5)
+        time.sleep(0.3)
 
     resultados = sorted(
         resultados,
