@@ -2,32 +2,48 @@ name: Analizar acciones
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Forzar ejecucion aunque el mercado este cerrado"
+        required: false
+        type: boolean
+        default: false
 
-  repository_dispatch:
-    types: [activar-arq]
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/analizar.yml"
+      - "analizador_acciones.py"
 
 permissions:
   contents: write
 
 concurrency:
-  group: analizar-acciones
+  group: arq-auto-update
   cancel-in-progress: true
 
 jobs:
   analizar:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
 
       - name: Mostrar tipo de ejecucion
         run: |
-          echo "Evento que activo el workflow: ${{ github.event_name }}"
-          echo "Rama actual: ${{ github.ref_name }}"
+          echo "Evento: ${{ github.event_name }}"
+          echo "Rama: ${{ github.ref }}"
+          echo "Fecha UTC:"
+          date -u
+          echo "Fecha Colombia:"
+          TZ=America/Bogota date
+          echo "Fecha New York:"
+          TZ=America/New_York date
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -37,58 +53,60 @@ jobs:
       - name: Instalar librerias
         run: |
           python -m pip install --upgrade pip
-          pip install yfinance pandas numpy requests pytz
+          pip install pandas numpy openpyxl yfinance requests pandas_market_calendars
 
       - name: Verificar mercado abierto NYSE
         id: mercado
         run: |
           python - <<'PY'
-          from datetime import datetime, time
+          import os
+          from datetime import datetime
           from zoneinfo import ZoneInfo
+          import pandas_market_calendars as mcal
 
-          ahora_ny = datetime.now(ZoneInfo("America/New_York"))
-          apertura = time(9, 30)
-          cierre = time(16, 0)
+          now = datetime.now(ZoneInfo("America/New_York"))
+          cal = mcal.get_calendar("NYSE")
+          sched = cal.schedule(start_date=now.date(), end_date=now.date())
 
-          es_laboral = ahora_ny.weekday() < 5
-          mercado_abierto = es_laboral and apertura <= ahora_ny.time() <= cierre
+          is_open = False
 
-          print(f"Ahora NY: {ahora_ny.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-          print(f"Apertura NYSE: {apertura}")
-          print(f"Cierre NYSE: {cierre}")
-          print(f"Mercado abierto: {mercado_abierto}")
+          if sched.empty:
+              print(f"Mercado cerrado hoy. Ahora NY: {now:%Y-%m-%d %H:%M:%S %Z}")
+          else:
+              market_open = sched.iloc[0]["market_open"].tz_convert("America/New_York").to_pydatetime()
+              market_close = sched.iloc[0]["market_close"].tz_convert("America/New_York").to_pydatetime()
 
-          with open("mercado_estado.txt", "w", encoding="utf-8") as f:
-              f.write("true" if mercado_abierto else "false")
+              is_open = market_open <= now <= market_close
+
+              print(f"Ahora NY: {now:%Y-%m-%d %H:%M:%S %Z}")
+              print(f"Apertura NYSE: {market_open:%Y-%m-%d %H:%M:%S %Z}")
+              print(f"Cierre NYSE: {market_close:%Y-%m-%d %H:%M:%S %Z}")
+              print(f"Mercado abierto: {is_open}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"is_open={'true' if is_open else 'false'}\n")
           PY
 
-          MERCADO=$(cat mercado_estado.txt)
-          echo "abierto=$MERCADO" >> $GITHUB_OUTPUT
-
       - name: Mercado cerrado - no ejecutar analisis
-        if: steps.mercado.outputs.abierto != 'true'
+        if: steps.mercado.outputs.is_open != 'true' && !(github.event_name == 'workflow_dispatch' && inputs.force)
         run: |
-          echo "Mercado cerrado. No se ejecuta el analisis."
+          echo "Mercado cerrado. No se actualiza datos_acciones.json."
 
       - name: Ejecutar analizador
-        if: steps.mercado.outputs.abierto == 'true'
-        run: |
-          python analizador_acciones.py
+        if: steps.mercado.outputs.is_open == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force)
+        run: python analizador_acciones.py
 
       - name: Guardar datos actualizados
-        if: steps.mercado.outputs.abierto == 'true'
+        if: steps.mercado.outputs.is_open == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force)
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git pull --rebase origin main
-
           git add datos_acciones.json
 
           if git diff --cached --quiet; then
-            echo "No hay cambios para guardar."
+            echo "Sin cambios para guardar"
           else
             git commit -m "Actualizar datos ARQ automatico"
-            git pull --rebase origin main
-            git push origin main
+            git push
           fi
