@@ -33,13 +33,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: "requirements.txt"
 
       - name: Instalar librerias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install yfinance pandas numpy requests pytz
 
       - name: Verificar mercado abierto NYSE
         id: mercado
