@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070b16" />
+  <title>ARQ Market Scanner | Analizador de Acciones</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main class="container">
+
+    <section class="hero pro-hero">
+      <div class="hero-head">
+        <div class="brand">
+          <div class="brand-logo">ARQ</div>
+          <div>
+            <div class="eyebrow">Market Scanner</div>
+            <h1>Analizador de Acciones ARQ</h1>
+          </div>
+        </div>
+
+        <div id="marketStatusBadge" class="market-status-badge market-off">
+          <span class="market-status-dot"></span>
+          <span id="marketStatusText">sistema off</span>
+        </div>
+      </div>
+
+      <p class="hero-desc">
+        Scanner técnico con contexto de mercado, confirmación sectorial, momentum,
+        riesgo, zonas de entrada, stop loss y explicación de cada señal.
+      </p>
+
+      <div class="system-grid">
+        <div class="system-card clock-card">
+          <span>Hora Colombia</span>
+          <strong id="horaColombia" class="status-value live-clock">Cargando...</strong>
+        </div>
+
+        <div class="system-card clock-card-ny">
+          <span>Hora New York</span>
+          <strong id="horaNewYork" class="status-value live-clock">Cargando...</strong>
+        </div>
+
+        <div class="system-card">
+          <span>Última actualización</span>
+          <strong id="fecha" class="status-value">Cargando...</strong>
+        </div>
+
+        <div class="system-card">
+          <span>Contexto mercado</span>
+          <strong id="marketBox" class="status-value market-status">Cargando...</strong>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button onclick="cargarDatos()">Actualizar vista</button>
+        <button onclick="ejecutarAnalisis()" class="secondary">Abrir GitHub Actions</button>
+        <button onclick="mostrarTop4()" class="accent">Top 4 para mañana</button>
+      </div>
+
+      <div class="filtros">
+        <label class="select-label" for="sectorSelect">
+          Sector
+          <select id="sectorSelect" onchange="filtrarSector(this.value)">
+            <option value="TODOS">Todos</option>
+            <option value="IA">IA</option>
+            <option value="Chips">Chips</option>
+            <option value="Trading">Trading</option>
+            <option value="Energía">Energía</option>
+            <option value="Tecnología">Tecnología</option>
+            <option value="ETF">ETF</option>
+            <option value="Finanzas">Finanzas</option>
+            <option value="Salud">Salud</option>
+            <option value="Ciberseguridad">Ciberseguridad</option>
+            <option value="Industrial">Industrial</option>
+            <option value="Consumo">Consumo</option>
+            <option value="Autos">Autos</option>
+            <option value="Espacial">Espacial</option>
+            <option value="Computación">Computación cuántica</option>
+          </select>
+        </label>
+
+        <input
+          type="text"
+          id="buscarAccion"
+          placeholder="Buscar acción: NVDA, AMD, TSLA..."
+          oninput="renderTabla()"
+        />
+
+        <button onclick="limpiarBusqueda()">Quitar filtros</button>
+
+        <label>
+          <input type="checkbox" id="soloCompra" onchange="renderTabla()" />
+          Solo compra
+        </label>
+
+        <label>
+          <input type="checkbox" id="soloHot" onchange="renderTabla()" />
+          Solo HOT
+        </label>
+
+        <label>
+          <input type="checkbox" id="ocultarAlto" onchange="renderTabla()" />
+          Ocultar riesgo alto
+        </label>
+      </div>
+    </section>
+
+    <section class="notice">
+      <strong>Importante:</strong>
+      El score ARQ es una lectura técnica automática, no una garantía de ganancia.
+      Antes de operar, confirma precio en tiempo real, liquidez, spread y usa gestión de riesgo.
+    </section>
+
+    <section class="card summary-card">
+      <div class="section-title">
+        <h2>Resumen del scanner</h2>
+        <span id="contadorResultados">Cargando resultados...</span>
+      </div>
+      <div class="summary" id="resumen">Cargando resumen...</div>
+    </section>
+
+    <section class="card market-card">
+      <div class="section-title">
+        <h2>Contexto técnico de mercado</h2>
+        <span>SPY / QQQ + sectores clave</span>
+      </div>
+      <div id="contextoDetalle" class="context-grid">
+        Cargando contexto...
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="topbar">
+        <div>
+          <h2>Resultados principales</h2>
+          <p class="muted">
+            Columnas principales visibles. Usa “Ver explicación” para abrir razones,
+            alertas y datos técnicos secundarios.
+          </p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Acción</th>
+              <th>Precio</th>
+              <th>Score</th>
+              <th>Señal</th>
+              <th>Riesgo</th>
+              <th>Contexto sector</th>
+              <th>Momentum</th>
+              <th>Volumen rel.</th>
+              <th>Entrada</th>
+              <th>Stop</th>
+              <th>Objetivo</th>
+              <th>Explicación</th>
+            </tr>
+          </thead>
+          <tbody id="tabla"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
